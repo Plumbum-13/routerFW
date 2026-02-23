@@ -35,9 +35,9 @@ This is a series of lessons designed to help you master the Universal Builder, f
 ## Project Architecture
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../dist/architecture-tetris-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="../dist/architecture-tetris.svg">
-  <img alt="Version tetris: architecture modules, rhythm by release dates" src="../dist/architecture-tetris.svg" width="800" height="160">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/iqubik/routerFW/output/architecture-tetris-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/iqubik/routerFW/output/architecture-tetris.svg">
+  <img alt="Version tetris: architecture modules, rhythm by release dates" src="https://raw.githubusercontent.com/iqubik/routerFW/output/architecture-tetris.svg" width="800" height="160">
 </picture>
 
 *   [**Architecture & Process Flow (EN)**](./ARCHITECTURE_en.md) — text diagrams of all build stages.

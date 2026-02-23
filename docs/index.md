@@ -35,9 +35,9 @@
 ## Архитектура проекта
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../dist/architecture-tetris-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="../dist/architecture-tetris.svg">
-  <img alt="Тетрис версий: модули архитектуры, ритм по датам релизов" src="../dist/architecture-tetris.svg" width="800" height="160">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/iqubik/routerFW/output/architecture-tetris-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/iqubik/routerFW/output/architecture-tetris.svg">
+  <img alt="Тетрис версий: модули архитектуры, ритм по датам релизов" src="https://raw.githubusercontent.com/iqubik/routerFW/output/architecture-tetris.svg" width="800" height="160">
 </picture>
 
 *   [**Архитектура и поток процессов (RU)**](./ARCHITECTURE_ru.md) — текстовые схемы всех этапов сборки.

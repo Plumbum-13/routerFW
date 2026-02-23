@@ -3,7 +3,7 @@
 
 Составлено по CHANGELOG.md (теги релизов). Дата выгрузки CHANGELOG: 2026-02-20.
 
-![Рост и развитие — деление по эпохам, почкование версий](../dist/architecture-growth-dark.svg)
+![Рост и развитие — деление по эпохам, почкование версий](https://raw.githubusercontent.com/iqubik/routerFW/output/architecture-growth-dark.svg)
 
 *Визуализация: четыре эпохи (I–IV), в каждой — ячейки релизов с ключевыми фичами и датами. Генерируется скриптом `system/architecture-tetris.ps1`.*
 
