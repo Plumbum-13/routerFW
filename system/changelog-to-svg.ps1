@@ -16,6 +16,9 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = (Get-Item $ScriptDir).Parent.FullName
 $ChangelogPath = Join-Path $ProjectRoot "CHANGELOG.md"
 $DistDir = Join-Path $ProjectRoot "dist"
+if (-not (Test-Path $DistDir)) {
+    New-Item -ItemType Directory -Path $DistDir -Force | Out-Null
+}
 
 if (-not (Test-Path $ChangelogPath)) {
     Write-Error "CHANGELOG.md not found: $ChangelogPath"

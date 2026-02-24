@@ -21,14 +21,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pwsh -NoProfile -ExecutionPolicy Bypass -File ./system/get-git.ps1
 
-      - name: Generate snake (contribution grid)
-        uses: Platane/snk@v3
-        with:
-          github_user_name: ${{ github.repository_owner }}
-          outputs: |
-            dist/github-contribution-grid-snake.svg
-            dist/github-contribution-grid-snake-dark.svg?palette=github-dark
-
       - name: Generate timeline and tree SVGs
         run: pwsh -NoProfile -ExecutionPolicy Bypass -File ./system/changelog-to-svg.ps1
 
@@ -37,6 +29,14 @@ jobs:
 
       - name: Generate architecture tetris (modules + release rhythm)
         run: pwsh -NoProfile -ExecutionPolicy Bypass -File ./system/architecture-tetris.ps1
+
+      - name: Generate snake (contribution grid)
+        uses: Platane/snk@v3
+        with:
+          github_user_name: ${{ github.repository_owner }}
+          outputs: |
+            dist/github-contribution-grid-snake.svg
+            dist/github-contribution-grid-snake-dark.svg?palette=github-dark
 
       - uses: crazy-max/ghaction-github-pages@v3.1.0
         with:
