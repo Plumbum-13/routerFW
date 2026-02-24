@@ -6,7 +6,7 @@ alwaysApply: true
 # routerFW — OpenWrtFW Builder
 
 Cross-platform framework for building custom OpenWrt firmware via Docker.
-Version: 4.43 (_Builder.bat + _Builder.sh). License: GPL-3.0. Author: iqubik.
+Version: 4.44 (_Builder.bat + _Builder.sh). License: GPL-3.0. Author: iqubik.
 Remote: https://github.com/iqubik/routerFW.git, branch: main.
 
 ## Two Build Modes
@@ -18,10 +18,11 @@ Remote: https://github.com/iqubik/routerFW.git, branch: main.
 
 | Path | Purpose |
 |------|---------|
-| `_Builder.sh` / `_Builder.bat` | Main entry points (interactive menu, build orchestration) |
+| `_Builder.sh` / `_Builder.bat` | Main entry points: interactive menu or CLI args (build orchestration, scripted/CI runs) |
+| `tester.sh` / `tester.bat` | First versions of CLI test harnesses (drive builders via args, check output) |
 | `system/` | Core build system (Dockerfiles, compose, builders, wizards) |
 | `system/lang/` | Localization dictionaries (`ru.env`, `en.env` — unified pseudo-format) |
-| `scripts/` | Utilities (hooks.sh, diag.sh, packager.sh, upgrade.sh) |
+| `scripts/` | Utilities (hooks.sh, diag.sh, packager.sh, upgrade.sh, show_pkgs.sh) |
 | `profiles/*.conf` | Build profile configurations |
 | `custom_files/<profile>/` | File overlay (maps to `/` in firmware) |
 | `custom_packages/<profile>/` | .ipk packages for Image Builder |
@@ -33,6 +34,7 @@ Remote: https://github.com/iqubik/routerFW.git, branch: main.
 | `_packer.sh` / `_packer.bat` | Packs project into self-extracting distribution |
 | `_unpacker.sh` / `_unpacker.bat` | Self-extracting archives (base64, DO NOT READ) |
 | `.dockerignore` | Excludes `firmware_output/`, `custom_files/`, `.git/` etc. from Docker build context (критично — `firmware_output/` может весить 10+ ГБ) |
+| `.cursorignore` | Cursor index exclusions: mirrors toxic files, private dirs, `firmware_output/`, test envs (`nl_test/`, `nw_test/`), `.docker_tmp/` — aligns with `.gitignore` and project rules |
 
 ## Tech Stack
 
@@ -47,6 +49,13 @@ Remote: https://github.com/iqubik/routerFW.git, branch: main.
 - Windows (.bat/.ps1) and Linux (.sh) scripts are kept in feature parity
 - Profiles are universal `.conf` files shared between both build modes
 - Docker volumes provide caching: SDK cache, package cache, ccache, source workdir
+
+## CLI, languages, and recent behaviour
+
+- **Языки вынесены** — локализация сосредоточена в `system/lang/` (`ru.env`, `en.env`); выбор языка определяется при старте (переменная/окружение), словари подгружаются до меню.
+- **CLI (аргументы командной строки)** — `_Builder.bat` и `_Builder.sh` принимают аргументы командной строки для неинтерактивного запуска: выбор профиля, режима сборки и т.д. без входа в интерактивное меню (скрипты, CI).
+- **Source Builder — исправление определения цели** — в режиме Source Builder исправлен баг с определением цели/устройства сборки (корректное использование target/subtarget/профиля в `src_builder.sh` и при создании профилей).
+- **Тестеры CLI** — `tester.bat` и `tester.sh` — первые версии тестовых оболочек для проверки CLI: запуск билдеров с аргументами, проверка вывода. Логи/артефакты тестов в `.gitignore` (`tester_log_*.md`, `tester_tmp_*_out.txt`).
 
 ## Profile Variable Naming (current)
 
@@ -83,7 +92,7 @@ Governed by `.gitattributes`. System is fully normalised:
 | `.cursor/rules/*.mdc`, `*.json`, `*.yml`, `.gitignore`, `.dockerignore` | LF | config/system files |
 | `*.zip`, `*.zst`, `*.tar`, `*.gz`, `*.bin`, `*.7z` | binary | Git LFS, no EOL processing |
 
-**BOM** — only PowerShell files: `system/create_profile.ps1`, `system/import_ipk.ps1`, `scripts/rax3000m/generate_options.ps1` (UTF-8 BOM required for Cyrillic on Windows).
+**BOM** — only PowerShell files: `system/create_profile.ps1`, `system/import_ipk.ps1` (UTF-8 BOM required for Cyrillic on Windows).
 
 **`profiles/personal.flag`** — explicitly listed in `.gitattributes` as `text eol=lf` since it has no extension and is not matched by `*.conf`.
 
