@@ -11,7 +11,6 @@ _unpacker.sh
 /custom_patches/
 
 # === Build artifacts (large, not useful for code analysis) ===
-/firmware_output/
 *.bin
 *.img
 *.ipk
@@ -23,7 +22,6 @@ _unpacker.sh
 # === Other gitignored ===
 /bck/
 /reverse/
-debug.md
 tester_log_*.md
 tester_tmp_*_out.txt
-.docker_tmp/
+

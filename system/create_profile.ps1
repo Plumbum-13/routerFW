@@ -3,7 +3,7 @@
     OpenWrt/ImmortalWrt Universal Profile Creator.
     file: system\create_profile.ps1
 .VERSION
-    2.5 (fix device detection)
+    2.6 (0 to exit)
 .DESCRIPTION
     Скрипт-мастер (Wizard) для создания конфигурационных файлов профилей сборки.
     Поддерживает:
@@ -72,7 +72,7 @@ if ($Lang -eq "RU") {
     $L.Step6_Exists   = "[!] Файл уже существует!"
     $L.Step6_Overwrite= "Перезаписать? (y/n) [n]"
     $L.Step6_Saved    = "Конфиг успешно сохранен:"
-    $L.FinalAction    = "Нажмите Enter для создания нового профиля или 'Q' для выхода..."
+    $L.FinalAction    = "Нажмите Enter для создания нового профиля или '0' для выхода..."
 } else {
     $L.HeaderTitle    = "UNIVERSAL Profile Creator (v2.28 UX+)"
     $L.StructureLabel = "TYPICAL FIRMWARE FILENAME STRUCTURE:"
@@ -99,7 +99,7 @@ if ($Lang -eq "RU") {
     $L.Step6_Exists   = "[!] File already exists!"
     $L.Step6_Overwrite= "Overwrite? (y/n) [n]"
     $L.Step6_Saved    = "Config successfully saved:"
-    $L.FinalAction    = "Press Enter for new profile or 'Q' to exit..."
+    $L.FinalAction    = "Press Enter for new profile or '0' to exit..."
 }
 
 # --- INIT ---
@@ -195,13 +195,13 @@ function Read-Selection {
     do {
         $prompt = "`n$($L.PromptSelect) (1-$MaxCount)"
         if ($AllowBack) { $prompt += ", [Z] $($L.PromptBack)" }
-        $prompt += ", [Q] $($L.PromptExit): "
+        $prompt += ", [0] $($L.PromptExit): "
         $inputVal = Read-Host $prompt
         # Игнорируем пустой ввод
         if ([string]::IsNullOrWhiteSpace($inputVal)) { continue }
-        $val = $inputVal.Trim().ToLower()
+        $val = $inputVal.Trim()
         # Обработка выхода
-        if ($val -eq 'q') { exit }
+        if ($val -eq '0') { exit }
         if ($AllowBack -and $val -eq 'z') { return -1 } 
         # Валидация числа
         if ($val -match '^\d+$') {
@@ -501,7 +501,7 @@ CONFIG_TARGET_$($GlobalState.Target)_$($GlobalState.Subtarget)_DEVICE_$($GlobalS
                 Write-Host "`n[OK] $($L.Step6_Saved) $confPath" -ForegroundColor Green
                 
                 Write-Host "`n$($L.FinalAction)"
-                if ((Read-Host).ToLower() -eq 'q') { exit }
+                if ((Read-Host).Trim() -eq '0') { exit }
                 $Step = 1
             } # <-- Закрывает Шаг 6
         } # <-- Закрывает Switch

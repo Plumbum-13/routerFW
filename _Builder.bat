@@ -576,9 +576,10 @@ goto MENU
 :CLEAN_MENU
 if not defined ROUTERFW_NO_CLS cls
 if not defined ROUTERFW_NO_CLS color 0E
-echo !L_SEPARATOR_EQ!
-echo  %L_CLEAN_TITLE% [%BUILD_MODE%]
-echo !L_SEPARATOR_EQ!
+set "MENU_SEP============================================================"
+echo %C_KEY%!MENU_SEP!%C_RST%
+echo  !L_CLEAN_TITLE! [%BUILD_MODE%]
+echo %C_KEY%!MENU_SEP!%C_RST%
 echo.
 echo  %L_CLEAN_TYPE%:
 echo.
@@ -652,9 +653,10 @@ goto SELECT_PROFILE_FOR_CLEAN
 :: =========================================================
 :SELECT_PROFILE_FOR_CLEAN
 if not defined ROUTERFW_NO_CLS cls
-echo !L_SEPARATOR_EQ!
+set "MENU_SEP============================================================"
+echo %C_KEY%!MENU_SEP!%C_RST%
 echo  !L_CLEAN_HEADER!: %CLEAN_DESC%
-echo !L_SEPARATOR_EQ!
+echo %C_KEY%!MENU_SEP!%C_RST%
 echo.
 echo  %L_CLEAN_PROF_SEL%:
 echo.
@@ -957,9 +959,10 @@ goto CLEAN_MENU
 
 :WIZARD
 if not defined ROUTERFW_NO_CLS cls
-echo !L_SEPARATOR_EQ!
-echo  %L_WIZ_START%
-echo !L_SEPARATOR_EQ!
+set "MENU_SEP============================================================"
+echo %C_KEY%!MENU_SEP!%C_RST%
+echo  !L_WIZ_START!
+echo %C_KEY%!MENU_SEP!%C_RST%
 echo.
 if exist "system/create_profile.ps1" (
     powershell -ExecutionPolicy Bypass -File "system/create_profile.ps1"
@@ -1179,9 +1182,10 @@ goto CONFIRM_CLEAN
 :MENUCONFIG_SELECTION
 if not "%BUILD_MODE%"=="SOURCE" goto MENU
 if not defined ROUTERFW_NO_CLS cls
-echo !L_SEPARATOR_EQ!
-echo  %C_KEY%%L_K_TITLE%%C_RST%
-echo !L_SEPARATOR_EQ!
+set "MENU_SEP============================================================"
+echo %C_KEY%!MENU_SEP!%C_RST%
+echo  %C_KEY%!L_K_TITLE!%C_RST%
+echo %C_KEY%!MENU_SEP!%C_RST%
 echo.
 echo  %L_K_DESC%: %C_LBL%firmware_output\sourcebuilder\%C_VAL%[PROFILE_ID]%C_RST%
 echo.

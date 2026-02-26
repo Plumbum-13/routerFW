@@ -3,7 +3,7 @@
 # file: system/create_profile.sh
 # =========================================================
 #  OpenWrt/ImmortalWrt Universal Profile Creator
-#  Bash Version 2.40 (fix device detection)
+#  Bash Version 2.60 (0 to exit)
 # =========================================================
 
 # --- ЦВЕТА ---
@@ -61,7 +61,7 @@ if [ "$Lang" == "RU" ]; then
     L[Step6_Exists]="[!] Файл уже существует!"
     L[Step6_Overwrite]="Перезаписать? (y/n) [n]"
     L[Step6_Saved]="Конфиг успешно сохранен:"
-    L[FinalAction]="Нажмите Enter для создания нового профиля или 'Q' для выхода..."
+    L[FinalAction]="Нажмите Enter для создания нового профиля или '0' для выхода..."
 else
     L[HeaderTitle]="UNIVERSAL Profile Creator (v2.30 UX+)"
     L[StructureLabel]="TYPICAL FIRMWARE FILENAME STRUCTURE:"
@@ -88,7 +88,7 @@ else
     L[Step6_Exists]="[!] File already exists!"
     L[Step6_Overwrite]="Overwrite? (y/n) [n]"
     L[Step6_Saved]="Config successfully saved:"
-    L[FinalAction]="Press Enter for new profile or 'Q' to exit..."
+    L[FinalAction]="Press Enter for new profile or '0' to exit..."
 fi
 
 # --- ИНИЦИАЛИЗАЦИЯ ---
@@ -156,11 +156,12 @@ read_selection() {
     while true; do
         echo -ne "\n${C_YEL}${L[PromptSelect]} (1-$max)"
         [ "$allow_back" == "true" ] && echo -ne ", [Z] ${L[PromptBack]}"
-        echo -ne ", [Q] ${L[PromptExit]}: ${C_RST}"
+        echo -ne ", [0] ${L[PromptExit]}: ${C_RST}"
         read -r input_val
-        input_val=$(echo "$input_val" | tr '[:upper:]' '[:lower:]' | xargs)
-        [ "$input_val" == "q" ] && exit 0
-        [ "$allow_back" == "true" ] && [ "$input_val" == "z" ] && return 255
+        input_val=$(echo "$input_val" | xargs)
+        [ "$input_val" == "0" ] && exit 0
+        input_val_lower=$(echo "$input_val" | tr '[:upper:]' '[:lower:]')
+        [ "$allow_back" == "true" ] && [ "$input_val_lower" == "z" ] && return 255
         if [[ "$input_val" =~ ^[0-9]+$ ]] && [ "$input_val" -ge 1 ] && [ "$input_val" -le "$max" ]; then
             return "$input_val"
         fi
@@ -386,7 +387,7 @@ EOF
             echo -e "\n${C_GRN}[OK] ${L[Step6_Saved]} $conf_path${C_RST}"
             echo -e "\n${L[FinalAction]}"
             read -r final_act
-            [[ "$(echo "$final_act" | tr '[:upper:]' '[:lower:]')" == "q" ]] && exit 0
+            [[ "$(echo "$final_act" | xargs)" == "0" ]] && exit 0
             STEP=1
             ;;
     esac
