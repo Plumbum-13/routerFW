@@ -370,21 +370,41 @@ add_checksum_to_file() {
     [ ! -f "$file" ] && { echo -e "${C_ERR}[SKIP] $file not found${C_RST}"; return 1; }
     local staged
     staged=$(mktemp)
-    cat "$file" > "$staged"
-    local lastline
-    lastline=$(tail -n 1 "$staged" 2>/dev/null)
-    if [[ "$lastline" =~ checksum:MD5=[0-9a-fA-F]{32} ]]; then
-        sed '$d' "$staged" > "${staged}.t" && mv "${staged}.t" "$staged"
-        # Remove preceding blank line (idempotency — no accumulation)
-        lastline=$(tail -n 1 "$staged" 2>/dev/null)
-        [[ -z "${lastline//[[:space:]]/}" ]] && sed '$d' "$staged" > "${staged}.t" && mv "${staged}.t" "$staged"
-    fi
+    
+    # Точная копия логики из _packer.sh и .bat (PowerShell) с помощью awk.
+    # Гарантирует правильные окончания строк и решает проблему "прилипания".
+    awk '
+    BEGIN { has_cr = 0 }
+    {
+        if (NR == 1 && /\r$/) has_cr = 1;
+        sub(/\r$/, "");
+        lines[NR] = $0;
+    }
+    END {
+        last = NR;
+        while (last > 0) {
+            if (lines[last] ~ /^[ \t]*$/) {
+                last--;
+            } else if (lines[last] ~ /^[ \t]*(::|#)?[ \t]*checksum:MD5=[0-9a-fA-F]{32}[ \t]*$/) {
+                last--;
+            } else {
+                break;
+            }
+        }
+        eol = has_cr ? "\r\n" : "\n";
+        for (i = 1; i <= last; i++) {
+            printf "%s%s", lines[i], eol;
+        }
+    }' "$file" > "$staged"
+
     local hash
     hash=$(md5sum < "$staged" | cut -d' ' -f1)
     hash="${hash,,}"
     local prefix
     prefix=$(checksum_comment_prefix "$file")    
-    # FIX: Убраны \n в начале и в конце формата, чтобы не было пустой строки после суммы
+    
+    # Файл теперь гарантированно заканчивается переносом строки (EOL),
+    # поэтому printf безопасно начнет запись с новой строки.
     printf '%s checksum:MD5=%s' "$prefix" "$hash" >> "$staged"
     mv "$staged" "$file"
 }
@@ -1594,3 +1614,4 @@ while true; do
             ;;
     esac
 done
+# checksum:MD5=33b239de81f7727eb7f77ad12c91b2c4
