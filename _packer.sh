@@ -1,6 +1,7 @@
 #!/bin/bash
 # file: _packer.sh
-# Multi-threaded Base64 Resource Storage (Parity v2.1)
+PACKER_VER="2.3"
+# Multi-threaded Base64 Resource Storage (checksum). Версия: PACKER_VER
 
 # Гарантируем работу в папке скрипта
 cd "$(dirname "$0")"
@@ -13,7 +14,7 @@ C_RST='\033[0m'
 
 clear
 echo -e "${C_LBL}========================================${C_RST}"
-echo -e "  OpenWrt Packer (v2.2 MT Linux)"
+echo -e "  OpenWrt Packer (v${PACKER_VER} MT Linux)"
 echo -e "${C_LBL}========================================${C_RST}"
 echo ""
 
@@ -80,13 +81,15 @@ mkdir -p "$TEMP_DIR"
 # --- 2. Генерация логики распаковщика ---
 echo -e "[PACKER] Создание логики распаковщика..."
 
-cat << 'EOF' > "$NEW_UNPACKER"
-#!/bin/bash
-# =========================================================
-#  Unpacker (Smart Edition v2.1 SH)
-# =========================================================
-
-# Переходим в директорию скрипта
+{
+    echo "#!/bin/bash"
+    echo "# =========================================================
+#  Unpacker (Smart Edition v${PACKER_VER} SH)
+# ========================================================="
+    echo ""
+    echo "# Переходим в директорию скрипта"
+} > "$NEW_UNPACKER"
+cat << 'EOF' >> "$NEW_UNPACKER"
 cd "$(dirname "$0")"
 
 echo "[UNPACKER] Resource check..."
@@ -156,22 +159,47 @@ EOF
 # --- 3. Многопоточное кодирование ---
 echo -e "[PACKER] Запуск потоков кодирования (${#FILES[@]} файлов)..."
 
+# Возвращает префикс комментария для строки checksum по пути файла: :: для .bat/.cmd, иначе #
+checksum_comment_prefix() {
+    local path="$1"
+    local ext="${path##*.}"
+    [[ "$ext" == "bat" || "$ext" == "cmd" ]] && echo "::" || echo "#"
+}
+
 # Функция воркера (будет запущена в подоболочке)
+# Перед кодированием добавляет в конец файла строку checksum:MD5=<hash> для версионирования (updater).
 process_file() {
     local file="$1"
     local id="$2"
     local temp_dir="$3"
     local out="$temp_dir/$id.chunk"
     local ready="$temp_dir/$id.ready"
+    local staged="$temp_dir/$id.staged"
 
     if [ -f "$file" ]; then
+        # Копируем файл во временный; убираем последнюю строку, если это уже строка с checksum
+        cat "$file" > "$staged"
+        local lastline
+        lastline=$(tail -n 1 "$staged" 2>/dev/null)
+        if [[ "$lastline" =~ checksum:MD5=[0-9a-fA-F]{32} ]]; then
+            sed '$d' "$staged" > "$staged.t"
+            mv "$staged.t" "$staged"
+        fi
+        # MD5 от «чистого» содержимого, затем дописываем строку с хешем
+        local hash
+        hash=$(md5sum < "$staged" | cut -d' ' -f1)
+        hash="${hash,,}"
+        local prefix
+        prefix=$(checksum_comment_prefix "$file")
+        printf '\n%s checksum:MD5=%s\n' "$prefix" "$hash" >> "$staged"
         echo "" > "$out"
         echo "# BEGIN_B64_ $file" >> "$out"
-        base64 "$file" >> "$out"
+        base64 "$staged" >> "$out"
         echo "# END_B64_ $file" >> "$out"
+        rm -f "$staged"
     else
         # Заглушка, если файла нет (чтобы не ломать структуру)
-        echo "" > "$out" 
+        echo "" > "$out"
         echo -e "${C_ERR}   [SKIP] Файл '$file' не найден.${C_RST}"
     fi
     # Сигнализируем о готовности
@@ -224,5 +252,5 @@ tar -czf "$ARCHIVE_NAME" "$NEW_UNPACKER"
 echo -e "${C_OK}========================================${C_RST}"
 echo -e "  Файл обновлен: $NEW_UNPACKER"
 echo -e "  Архив создан:  $ARCHIVE_NAME"
-echo -e "  ГОТОВО (v2.1 SH MT)"
+echo -e "  ГОТОВО (v${PACKER_VER} SH MT)"
 echo -e "${C_OK}========================================${C_RST}"

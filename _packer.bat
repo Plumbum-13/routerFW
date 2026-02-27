@@ -1,5 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
+set "PACKER_VER=2.3"
 cls
 chcp 65001 >nul
 
@@ -7,13 +8,12 @@ chcp 65001 >nul
 if "%~1"==":WORKER" goto :WORKER
 
 :: =========================================================
-::  Упаковщик общих ресурсов (Multi-Threaded Fixed)
-::  v2.1 (Fix: Spaces in paths & Quoting)
+::  Упаковщик общих ресурсов (Multi-Threaded Fixed), v%PACKER_VER%
 :: =========================================================
 
 cls
 echo ========================================
-echo  OpenWrt Universal Packer (v2.2 MT)
+echo  OpenWrt Universal Packer (v%PACKER_VER% MT)
 echo ========================================
 echo.
 
@@ -87,7 +87,7 @@ echo [PACKER] Создание логики распаковщика...
     echo chcp 65001 ^>nul
     echo.
     echo :: =========================================================
-    echo ::  Unpacker ^(Smart Edition v2.1^)
+    echo ::  Unpacker ^(Smart Edition v%PACKER_VER%^)
     echo :: =========================================================
     echo.
     echo echo [UNPACKER] Resource check...
@@ -208,7 +208,7 @@ echo.
 echo ========================================
 echo  Файл обновлен: _unpacker.bat
 echo  Архив создан:  !ZIP_NAME!
-echo  ГОТОВО (v2.1 Fixed)
+echo  ГОТОВО (v%PACKER_VER%)
 echo ========================================
 echo.
 exit /b
@@ -230,15 +230,43 @@ set "W_FILE=%~2"
 set "W_ID=%~3"
 set "W_DIR=%~4"
 set "W_TMP=%W_DIR%\%W_ID%.tmp"
+set "W_STAGED=%W_DIR%\%W_ID%.staged"
 set "W_OUT=%W_DIR%\%W_ID%.chunk"
 set "W_RDY=%W_DIR%\%W_ID%.ready"
 
-rem Кодируем certutil (ошибки в nul, чтобы не спамить в консоль)
-certutil -f -encode "%W_FILE%" "%W_TMP%" >nul 2>&1
+rem Подготовка staged: убрать последнюю строку если checksum, сохранить EOL файла, затем дописать строку с MD5 (версионирование для updater)
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$path='%W_FILE:\=\\%'; $staged='%W_STAGED:\=\\%'; $enc=[System.Text.Encoding]::UTF8; $content=[IO.File]::ReadAllText($path,$enc); $eol=if($content -match \"`r`n\"){\"`r`n\"}else{\"`n\"}; $lines=($content -split \"`r?`n\"); $last=$lines[-1]; if($last -match 'checksum:MD5=[0-9a-fA-F]{32}'){$lines=$lines[0..($lines.Length-2)]}; $cleaned=($lines -join $eol); [IO.File]::WriteAllText($staged,$cleaned,$enc)" >nul 2>&1
 
-rem Если certutil не создал файл (например, файл занят или 0 байт), создаем пустой чанк
+if not exist "%W_STAGED%" (
+    echo :: ERROR_PACKING_FILE: %W_FILE% > "%W_OUT%"
+    echo done > "%W_RDY%"
+    exit
+)
+
+rem MD5 от «чистого» содержимого (certutil выводит две строки, берём вторую)
+set "W_HASH="
+for /f "skip=1 tokens=1" %%H in ('certutil -hashfile "%W_STAGED%" MD5 2^>nul') do set "W_HASH=%%H" & goto :HASH_DONE
+:HASH_DONE
+if not defined W_HASH set "W_HASH=d41d8cd98f00b204e9800998ecf8427e"
+
+rem Префикс комментария: :: для .bat/.cmd, иначе #
+set "W_PREFIX=#"
+for %%F in ("%W_FILE%") do set "W_EXT=%%~xF"
+if /i "%W_EXT%"==".bat" set "W_PREFIX=::"
+if /i "%W_EXT%"==".cmd" set "W_PREFIX=::"
+
+rem Дописываем в staged строку checksum:MD5=<hash> (тот же EOL, что у файла)
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$staged='%W_STAGED:\=\\%'; $enc=[System.Text.Encoding]::UTF8; $txt=[IO.File]::ReadAllText($staged,$enc); $eol=if($txt -match \"`r`n\"){\"`r`n\"}else{\"`n\"}; $hash='%W_HASH%'.ToLower(); $prefix='%W_PREFIX%'; $line=$eol+$prefix+\" checksum:MD5=\"+$hash+$eol; [IO.File]::AppendAllText($staged,$line,$enc)" >nul 2>&1
+
+rem Кодируем staged (файл с уже добавленной строкой checksum)
+certutil -f -encode "%W_STAGED%" "%W_TMP%" >nul 2>&1
+
+rem Если certutil не создал файл — пустой чанк
 if not exist "%W_TMP%" (
     echo :: ERROR_PACKING_FILE: %W_FILE% > "%W_OUT%"
+    del /q "%W_STAGED%" 2>nul
     echo done > "%W_RDY%"
     exit
 )
@@ -251,8 +279,9 @@ rem Формируем блок
     echo :: END_B64_ %W_FILE%
 ) > "%W_OUT%"
 
-rem Удаляем временный файл certutil
-del /q "%W_TMP%"
+rem Удаляем временные файлы
+del /q "%W_TMP%" 2>nul
+del /q "%W_STAGED%" 2>nul
 
 rem Создаем файл-флаг готовности
 echo done > "%W_RDY%"
