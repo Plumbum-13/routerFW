@@ -1,6 +1,6 @@
 #!/bin/bash
 # file: _packer.sh
-PACKER_VER="2.3"
+PACKER_VER="2.4"
 # Multi-threaded Base64 Resource Storage (checksum). Версия: PACKER_VER
 
 # Гарантируем работу в папке скрипта
@@ -177,21 +177,32 @@ process_file() {
     local staged="$temp_dir/$id.staged"
 
     if [ -f "$file" ]; then
-        # Копируем файл во временный; убираем последнюю строку, если это уже строка с checksum
-        cat "$file" > "$staged"
+        # Копируем файл
+        cp "$file" "$staged"
+        
+        # Если последняя строка — чексумма, удаляем её
         local lastline
         lastline=$(tail -n 1 "$staged" 2>/dev/null)
         if [[ "$lastline" =~ checksum:MD5=[0-9a-fA-F]{32} ]]; then
-            sed '$d' "$staged" > "$staged.t"
-            mv "$staged.t" "$staged"
+             sed -i '$d' "$staged"
         fi
-        # MD5 от «чистого» содержимого, затем дописываем строку с хешем
+
+        # FIX: Нормализация концов строк (удалить все пустые в конце, добавить одну).
+        # $(cat) удаляет все trailing newlines. printf добавляет ровно одну.
+        local content
+        content=$(cat "$staged")
+        printf "%s\n" "$content" > "$staged"
+        
+        # Считаем хеш
         local hash
         hash=$(md5sum < "$staged" | cut -d' ' -f1)
         hash="${hash,,}"
         local prefix
         prefix=$(checksum_comment_prefix "$file")
-        printf '\n%s checksum:MD5=%s\n' "$prefix" "$hash" >> "$staged"
+        
+        # FIX: Убраны \n в начале и в конце строки формата
+        printf '%s checksum:MD5=%s' "$prefix" "$hash" >> "$staged"
+        
         echo "" > "$out"
         echo "# BEGIN_B64_ $file" >> "$out"
         base64 "$staged" >> "$out"
