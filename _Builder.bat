@@ -1081,7 +1081,7 @@ set "CHK_STAGED=%TEMP%\builder_chksum_%RANDOM%.tmp"
 set "CHK_PATH=!CHK_FILE:\=\\!"
 :: FIX: Добавлено +$eol к $cleaned, чтобы восстановить финальный перенос строки (как делает sed в sh)
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$path='!CHK_PATH!'; $staged='!CHK_STAGED:\=\\!'; $enc=[System.Text.UTF8Encoding]::new($false); $content=[IO.File]::ReadAllText($path,$enc).TrimEnd([char]13,[char]10); $eol=if($content -match \"`r`n\"){\"`r`n\"}else{\"`n\"}; $lines=@($content -split \"`r?`n\"); while($lines.Count -gt 0){$last=($lines[-1] -replace \"`r$\",''); if([string]::IsNullOrWhiteSpace($last)){$lines=$lines[0..($lines.Count-2)]}elseif($last -match '^\s*#?\s*checksum:MD5=[0-9a-fA-F]{32}\s*$'){$lines=$lines[0..($lines.Count-2)]; if($lines.Count -gt 0 -and [string]::IsNullOrWhiteSpace(($lines[-1] -replace \"`r$\",''))){$lines=$lines[0..($lines.Count-2)]}}else{break}}; $cleaned=($lines -join $eol)+$eol; [IO.File]::WriteAllText($staged,$cleaned,$enc)" >nul 2>&1
+  "$path='!CHK_PATH!'; $staged='!CHK_STAGED:\=\\!'; $isPs1=[bool]($path -match '\.ps1$'); $enc=[System.Text.UTF8Encoding]::new($isPs1); $content=[IO.File]::ReadAllText($path,$enc).TrimEnd([char]13,[char]10); $eol=if($isPs1 -or $content -match \"`r`n\"){\"`r`n\"}else{\"`n\"}; $lines=@($content -split \"`r?`n\"); while($lines.Count -gt 0){$last=($lines[-1] -replace \"`r$\",''); if([string]::IsNullOrWhiteSpace($last)){$lines=$lines[0..($lines.Count-2)]}elseif($last -match '^\s*#?\s*checksum:MD5=[0-9a-fA-F]{32}\s*$'){$lines=$lines[0..($lines.Count-2)]; if($lines.Count -gt 0 -and [string]::IsNullOrWhiteSpace(($lines[-1] -replace \"`r$\",''))){$lines=$lines[0..($lines.Count-2)]}}else{break}}; $cleaned=($lines -join $eol)+$eol; [IO.File]::WriteAllText($staged,$cleaned,$enc)" >nul 2>&1
 if not exist "!CHK_STAGED!" exit /b 1
 set "CHK_HASH="
 for /f "skip=1 tokens=1" %%H in ('certutil -hashfile "!CHK_STAGED!" MD5 2^>nul') do set "CHK_HASH=%%H" & goto :CHK_HASH_DONE
@@ -1092,7 +1092,7 @@ for %%F in ("!CHK_FILE!") do set "CHK_EXT=%%~xF"
 if /i "!CHK_EXT!"==".bat" set "CHK_PREFIX=::"
 if /i "!CHK_EXT!"==".cmd" set "CHK_PREFIX=::"
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$staged='!CHK_STAGED:\=\\!'; $enc=[System.Text.UTF8Encoding]::new($false); $txt=[IO.File]::ReadAllText($staged,$enc); $eol=if($txt -match \"`r`n\"){\"`r`n\"}else{\"`n\"}; $hash='!CHK_HASH!'.ToLower(); $prefix='!CHK_PREFIX!'; $line=$prefix+\" checksum:MD5=\"+$hash; [IO.File]::AppendAllText($staged,$line,$enc)" >nul 2>&1
+  "$path='!CHK_PATH!'; $staged='!CHK_STAGED:\=\\!'; $isPs1=[bool]($path -match '\.ps1$'); $enc=[System.Text.UTF8Encoding]::new($isPs1); $txt=[IO.File]::ReadAllText($staged,$enc); $hash='!CHK_HASH!'.ToLower(); $prefix='!CHK_PREFIX!'; $line=$prefix+\" checksum:MD5=\"+$hash; [IO.File]::AppendAllText($staged,$line,$enc)" >nul 2>&1
 copy /y "!CHK_STAGED!" "!CHK_FILE!" >nul 2>&1
 del /q "!CHK_STAGED!" 2>nul
 echo   %C_GRY%-%C_RST% File: %C_VAL%!CHK_FILE!%C_RST% %C_GRY%MD5=%C_KEY%!CHK_HASH!%C_RST%
@@ -1104,7 +1104,7 @@ if not exist "!CHK_FILE!" exit /b 1
 set "CHK_STAGED=%TEMP%\builder_chksum_clear_%RANDOM%.tmp"
 set "CHK_PATH=!CHK_FILE:\=\\!"
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$path='!CHK_PATH!'; $staged='!CHK_STAGED:\=\\!'; $enc=[System.Text.UTF8Encoding]::new($false); $content=[IO.File]::ReadAllText($path,$enc).TrimEnd([char]13,[char]10); $eol=if($content -match \"`r`n\"){\"`r`n\"}else{\"`n\"}; $lines=@($content -split \"`r?`n\"); while($lines.Count -gt 0){$last=($lines[-1] -replace \"`r$\",''); if([string]::IsNullOrWhiteSpace($last)){$lines=$lines[0..($lines.Count-2)]}elseif($last -match '^\s*#?\s*checksum:MD5=[0-9a-fA-F]{32}\s*$'){$lines=$lines[0..($lines.Count-2)]; if($lines.Count -gt 0 -and [string]::IsNullOrWhiteSpace(($lines[-1] -replace \"`r$\",''))){$lines=$lines[0..($lines.Count-2)]}}else{break}}; $cleaned=($lines -join $eol)+$eol; [IO.File]::WriteAllText($staged,$cleaned,$enc)" >nul 2>&1
+  "$path='!CHK_PATH!'; $staged='!CHK_STAGED:\=\\!'; $isPs1=[bool]($path -match '\.ps1$'); $enc=[System.Text.UTF8Encoding]::new($isPs1); $content=[IO.File]::ReadAllText($path,$enc).TrimEnd([char]13,[char]10); $eol=if($isPs1 -or $content -match \"`r`n\"){\"`r`n\"}else{\"`n\"}; $lines=@($content -split \"`r?`n\"); while($lines.Count -gt 0){$last=($lines[-1] -replace \"`r$\",''); if([string]::IsNullOrWhiteSpace($last)){$lines=$lines[0..($lines.Count-2)]}elseif($last -match '^\s*#?\s*checksum:MD5=[0-9a-fA-F]{32}\s*$'){$lines=$lines[0..($lines.Count-2)]; if($lines.Count -gt 0 -and [string]::IsNullOrWhiteSpace(($lines[-1] -replace \"`r$\",''))){$lines=$lines[0..($lines.Count-2)]}}else{break}}; $cleaned=($lines -join $eol)+$eol; [IO.File]::WriteAllText($staged,$cleaned,$enc)" >nul 2>&1
 if not exist "!CHK_STAGED!" exit /b 1
 copy /y "!CHK_STAGED!" "!CHK_FILE!" >nul 2>&1
 del /q "!CHK_STAGED!" 2>nul
@@ -1650,4 +1650,4 @@ if not exist "custom_files\%~1\etc\uci-defaults" mkdir "custom_files\%~1\etc\uci
 set "B64=IyEvYmluL3NoCiMgRml4IFNTSCBwZXJtaXNzaW9ucwpbIC1kIC9ldGMvZHJvcGJZYXIgXSAmJiBjaG1vZCA3MDAgL2V0Yy9kcm9wYmVhcgpbIC1mIC9ldGMvZHJvcGJZYXIvYXV0aG9yaXplZF9rZXlzIF0gJiYgY2htb2QgNjAwIC9ldGMvZHJvcGJZYXIvYXV0aG9yaXplZF9rZXlzCiMgRml4IFNoYWRvdwpbIC1mIC9ldGMvc2hhZG93IF0gJiYgY2htb2QgNjAwIC9ldGMvc2hhZG93CiMgRml4IHJvb3QgU1NIIGtleXMKWyAtZCAvcm9vdC8uc3NoIF0gJiYgY2htb2QgNzAwIC9yb290Ly5zc2gKWyAtZiAvcm9vdC8uc3NoL2lkX3JzYSBdICYmIGNobW9kIDYwMCAvcm9vdC8uc3NoL2lkX3JzYQpleGl0IDAK"
 powershell -Command "[IO.File]::WriteAllBytes('custom_files\%~1\etc\uci-defaults\99-permissions.sh', [Convert]::FromBase64String('%B64%'))" >nul 2>&1
 exit /b
-:: checksum:MD5=352f6faa99b55158d36dd311ccd52c20
+:: checksum:MD5=a1640beb7764d4b48a5e7d9d43382da3
