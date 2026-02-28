@@ -116,6 +116,7 @@ To choose mode in one command, use the `ib`/`src` prefix. Mode toggle (key **M**
 | `state` | `s` | — | Profile table with flags (F,P,S,M,H,X,OI,OS) |
 | `check` | — | `<id>` | Add/update checksum in profiles/ID.conf |
 | `check-all` | — | — | Add/update checksum:MD5 in all unpacker files |
+| `check-clear` | — | `[<id>]` | Clear checksum:MD5 from all files or one profile |
 | `help` | `-h`, `--help` | — | Help and exit |
 
 **Positional:** `_Builder.bat 2` is treated as `build 2` (default mode — IB). Commands are case-insensitive.
