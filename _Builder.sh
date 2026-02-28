@@ -482,21 +482,45 @@ remove_checksum_from_file() {
 }
 
 do_checksum_clear() {
-    local unpacker=""
-    [ -f "_unpacker.sh" ] && unpacker="_unpacker.sh"
-    if [ -z "$unpacker" ]; then
-        echo -e "${C_ERR}$L_CHKSUM_ERR_NO_UNPACKER${C_RST}"
+    local arg="$1"
+    
+    # Если аргумент "all" или пустой — очищаем всё (включая распаковщик)
+    if [ -z "$arg" ] || [ "$arg" == "all" ]; then
+        local unpacker=""
+        [ -f "_unpacker.sh" ] && unpacker="_unpacker.sh"
+        [ -f "_unpacker.bat" ] && unpacker="_unpacker.bat" # на случай кросс-платформенности
+        
+        echo -e "${C_LBL}[CHECKSUM CLEAR]${C_RST} Starting global hash clearance..."
+        local n=0
+        
+        # 1. Очищаем сам распаковщик, если он есть
+        if [ -n "$unpacker" ]; then
+            remove_checksum_from_file "$unpacker" && ((n++))
+        fi
+        
+        # 2. Очищаем все файлы из списка распаковщика
+        local files
+        files=($(extract_files_from_unpacker))
+        for f in "${files[@]}"; do
+            if [ -f "$f" ]; then
+                remove_checksum_from_file "$f" && ((n++))
+            fi
+        done
+        
+        echo -e "${C_OK}Global clearance done! Processed files: $n${C_RST}"
+        return 0
+    fi
+
+    # Если указан конкретный ID — очищаем только его профиль
+    resolve_profile_by_id "$arg" || return 1
+    local target="profiles/$SELECTED_CONF"
+    if [ ! -f "$target" ]; then
+        echo -e "${C_ERR}$L_CHKSUM_ERR_FILE $target${C_RST}"
         return 1
     fi
-    local files
-    files=($(extract_files_from_unpacker))
-    [ ${#files[@]} -eq 0 ] && { echo -e "${C_ERR}$L_CHKSUM_ERR_EMPTY${C_RST}"; return 1; }
-    echo -e "${C_LBL}[CHECKSUM]${C_RST} Clearing MD5 signatures..."
-    local n=0
-    for f in "${files[@]}"; do
-        [ -f "$f" ] && remove_checksum_from_file "$f" && ((n++))
-    done
-    echo -e "${C_OK}Cleared $n files.${C_RST}"
+    
+    remove_checksum_from_file "$target"
+    echo -e "${C_OK}[CLEARED]${C_RST} ${C_VAL}$target${C_RST}"
 }
 
 run_menuconfig() {
@@ -1122,7 +1146,8 @@ dispatch_cli() {
             exit 0
             ;;
         CHECKSUM_CLEAR)
-            do_checksum_clear
+            # Передаем CLI_ARG1 в функцию (может быть пустым, "all" или ID)
+            do_checksum_clear "$CLI_ARG1"
             exit 0
             ;;
         CHECKSUM)
