@@ -234,10 +234,9 @@ set "W_STAGED=%W_DIR%\%W_ID%.staged"
 set "W_OUT=%W_DIR%\%W_ID%.chunk"
 set "W_RDY=%W_DIR%\%W_ID%.ready"
 
-rem 1. Подготовка staged: Точная копия логики из _Builder.bat (цикл while)
-rem Это гарантирует, что база для MD5 будет идентична той, что в билдере.
+rem 1. Подготовка staged: Удаляем старые хеши и лишние пустые строки
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$path='%W_FILE:\=\\%'; $staged='%W_STAGED:\=\\%'; $enc=[System.Text.UTF8Encoding]::new($false); $content=[IO.File]::ReadAllText($path,$enc).TrimEnd([char]13,[char]10); $eol=if($content -match \"`r`n\"){\"`r`n\"}else{\"`n\"}; $lines=@($content -split \"`r?`n\"); while($lines.Count -gt 0){$last=($lines[-1] -replace \"`r$\",''); if([string]::IsNullOrWhiteSpace($last)){$lines=$lines[0..($lines.Count-2)]}elseif($last -match '^\s*#?\s*checksum:MD5=[0-9a-fA-F]{32}\s*$'){$lines=$lines[0..($lines.Count-2)]; if($lines.Count -gt 0 -and [string]::IsNullOrWhiteSpace(($lines[-1] -replace \"`r$\",''))){$lines=$lines[0..($lines.Count-2)]}}else{break}}; $cleaned=($lines -join $eol)+$eol; [IO.File]::WriteAllText($staged,$cleaned,$enc)" >nul 2>&1
+  "$path='%W_FILE:\=\\%'; $staged='%W_STAGED:\=\\%'; $enc=[System.Text.UTF8Encoding]::new($false); $content=[IO.File]::ReadAllText($path,$enc).TrimEnd([char]13,[char]10); $eol=if($content -match \"`r`n\"){\"`r`n\"}else{\"`n\"}; $lines=@($content -split \"`r?`n\"); while($lines.Count -gt 0){$last=($lines[-1] -replace \"`r$\",''); if([string]::IsNullOrWhiteSpace($last)){$lines=$lines[0..($lines.Count-2)]}elseif($last -match '^\s*(::|#)?\s*checksum:MD5=[0-9a-fA-F]{32}\s*$'){$lines=$lines[0..($lines.Count-2)]; if($lines.Count -gt 0 -and [string]::IsNullOrWhiteSpace(($lines[-1] -replace \"`r$\",''))){$lines=$lines[0..($lines.Count-2)]}}else{break}}; $cleaned=($lines -join $eol)+$eol; [IO.File]::WriteAllText($staged,$cleaned,$enc)" >nul 2>&1
 
 if not exist "%W_STAGED%" (
     echo :: ERROR_PACKING_FILE: %W_FILE% > "%W_OUT%"
