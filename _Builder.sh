@@ -446,6 +446,59 @@ do_checksum_profile() {
     echo -e "${C_OK}$L_CHKSUM_PROFILE_OK${C_RST} ${C_VAL}$target${C_RST} ${C_GRY}MD5=$hash${C_RST}"
 }
 
+remove_checksum_from_file() {
+    local file="$1"
+    [ ! -f "$file" ] && { echo -e "${C_ERR}[SKIP] $file not found${C_RST}"; return 1; }
+    local staged
+    staged=$(mktemp)
+    
+    # Тот же AWK скрипт, что и при добавлении, который отрезает хеш и пустые строки с конца
+    awk '
+    BEGIN { has_cr = 0 }
+    {
+        if (NR == 1 && /\r$/) has_cr = 1;
+        sub(/\r$/, "");
+        lines[NR] = $0;
+    }
+    END {
+        last = NR;
+        while (last > 0) {
+            if (lines[last] ~ /^[ \t]*$/) {
+                last--;
+            } else if (lines[last] ~ /^[ \t]*(::|#)?[ \t]*checksum:MD5=[0-9a-fA-F]{32}[ \t]*$/) {
+                last--;
+            } else {
+                break;
+            }
+        }
+        eol = has_cr ? "\r\n" : "\n";
+        for (i = 1; i <= last; i++) {
+            printf "%s%s", lines[i], eol;
+        }
+    }' "$file" > "$staged"
+
+    mv "$staged" "$file"
+    echo -e "  ${C_GRY}-${C_RST} Cleared: ${C_VAL}${file}${C_RST}"
+}
+
+do_checksum_clear() {
+    local unpacker=""
+    [ -f "_unpacker.sh" ] && unpacker="_unpacker.sh"
+    if [ -z "$unpacker" ]; then
+        echo -e "${C_ERR}$L_CHKSUM_ERR_NO_UNPACKER${C_RST}"
+        return 1
+    fi
+    local files
+    files=($(extract_files_from_unpacker))
+    [ ${#files[@]} -eq 0 ] && { echo -e "${C_ERR}$L_CHKSUM_ERR_EMPTY${C_RST}"; return 1; }
+    echo -e "${C_LBL}[CHECKSUM]${C_RST} Clearing MD5 signatures..."
+    local n=0
+    for f in "${files[@]}"; do
+        [ -f "$f" ] && remove_checksum_from_file "$f" && ((n++))
+    done
+    echo -e "${C_OK}Cleared $n files.${C_RST}"
+}
+
 run_menuconfig() {
     local conf_file="$1"
     local p_id="${conf_file%.conf}"
@@ -961,6 +1014,7 @@ if [ -n "$p1" ]; then
         CLEAN|C)         CLI_CMD="CLEAN";     CLI_ARG1="$c2"; CLI_ARG2="$c3" ;;
         STATE|S)         CLI_CMD="STATE";    CLI_ARG1="$c2"; CLI_ARG2="$c3" ;;
         CHECK-ALL)       CLI_CMD="CHECKSUM_ALL"; CLI_ARG1="$c2"; CLI_ARG2="$c3" ;;
+        CHECK-CLEAR)     CLI_CMD="CHECKSUM_CLEAR"; CLI_ARG1="$c2"; CLI_ARG2="$c3" ;;
         CHECK)           CLI_CMD="CHECKSUM"; CLI_ARG1="$c2"; CLI_ARG2="$c3" ;;
         HELP|-H|--HELP)  CLI_CMD="HELP";     CLI_ARG1="$c2"; CLI_ARG2="$c3" ;;
         *)               CLI_CMD="BUILD";     CLI_ARG1="$c1"; CLI_ARG2="$c2" ;;  # позиционный вызов
@@ -1013,6 +1067,7 @@ dispatch_cli() {
             printf "  %-20s %-22s %s\n" "clean, c" "[1-6/1-3] [id/A]" "$L_CLI_DESC_CLEAN"
             printf "  %-20s %-22s %s\n" "state, s" "" "$L_CLI_DESC_STATE"
             printf "  %-20s %-22s %s\n" "check-all" "" "$L_CLI_DESC_CHKSUM_ALL"
+            printf "  %-20s %-22s %s\n" "check-clear" "" "Clear MD5 checksums from all files"
             printf "  %-20s %-22s %s\n" "check" "<id>" "$L_CLI_DESC_CHKSUM"
             printf "  %-20s %-22s %s\n" "help, -h, --help" "" "$L_CLI_DESC_HELP"
             echo ""
@@ -1064,6 +1119,10 @@ dispatch_cli() {
             ;;
         CHECKSUM_ALL)
             do_checksum_all
+            exit 0
+            ;;
+        CHECKSUM_CLEAR)
+            do_checksum_clear
             exit 0
             ;;
         CHECKSUM)
@@ -1615,4 +1674,3 @@ while true; do
             ;;
     esac
 done
-# checksum:MD5=2ccc89430ba94412e83a85ad745d1385
