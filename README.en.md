@@ -85,6 +85,7 @@ You can run the builder with arguments **without entering the interactive menu**
 | `state` | `s` | — | Profile table with flags (F,P,S,M,H,X,OI,OS) |
 | `check` | — | `<id>` | Add/update checksum in profiles/ID.conf |
 | `check-all` | — | — | Add/update checksum:MD5 in all unpacker files |
+| `check-clear` | — | `[<id>]` | Clear checksum:MD5 from all files or one profile |
 | `help` | `-h`, `--help` | — | Help and exit |
 
 **Positional:** `_Builder.bat 2` = build profile #2 (default mode — IB). Commands are case-insensitive.
@@ -401,4 +402,4 @@ Release visualization (CHANGELOG) — timeline, heatmap, activity river, pulse b
 ---
 
 Project audit https://github.com/iqubik/routerFW/blob/main/docs/audit.md
-# checksum:MD5=4125dc29ada92eb71693d6468fd48f6d
+# checksum:MD5=d60d496fc737d249f3d07719a67eb570

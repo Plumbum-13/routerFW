@@ -84,6 +84,7 @@
 | `state` | `s` | — | Таблица профилей с флагами (F,P,S,M,H,X,OI,OS) |
 | `check` | — | `<id>` | Добавить/обновить checksum в profiles/ID.conf |
 | `check-all` | — | — | Добавить/обновить checksum:MD5 во все файлы из unpacker |
+| `check-clear` | — | `[<id>]` | Очистить checksum:MD5 из всех файлов или одного профиля |
 | `help` | `-h`, `--help` | — | Справка по ключам и выход |
 
 **Позиционный вызов:** `_Builder.bat 2` = сборка профиля №2 (режим по умолчанию — IB). Регистр команд не учитывается.
@@ -408,4 +409,4 @@ SRC_CORES="safe"
 ---
 
 Аудит проекта https://github.com/iqubik/routerFW/blob/main/docs/audit.md
-# checksum:MD5=718b44e3eddf43be9055f6f3c19cf8bd
+# checksum:MD5=b8f25786d85985a9858bf91e681115c5
