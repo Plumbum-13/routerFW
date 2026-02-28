@@ -173,7 +173,7 @@ for /L %%i in (1,1,%IDX%) do (
     echo :DECODE_FILE
     echo     if exist "%%~1" exit /b
     echo     if not exist "%%~dp1" md "%%~dp1" 2^>nul
-    echo     echo [UNPACK] Recover: %%~1 - md5^( %%~2 ^)
+    echo     echo [UNPACK] Recover: %%~1 - md5^( %%~2^)
     echo     powershell -Command "$ext = '%%~1'; $content = Get-Content '%%~f0'; $start = $false; $b64 = ''; foreach($line in $content){ if($line -match 'BEGIN_B64_ ' + [Regex]::Escape($ext)){ $start = $true; continue }; if($line -match 'END_B64_ ' + [Regex]::Escape($ext)){ $start = $false; break }; if($start){ $b64 += $line.Trim() } }; if($b64){ [IO.File]::WriteAllBytes($ext, [Convert]::FromBase64String($b64)) }"
     echo exit /b
     echo.
