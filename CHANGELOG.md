@@ -1,7 +1,7 @@
 # RouterFW — тексты релизов (по тегам)
 
 Выгружено из репозитория по тегам через `gh release view`.
-Дата выгрузки: 2026-02-28 03:49:06.
+Дата выгрузки: 2026-03-01 02:02:45.
 
 ---
 
@@ -1999,3 +1999,177 @@ asset:	routerFW_WinDockerBuilder_v26.02.2026_21-00.zip
 
 
 **Full Changelog**: https://github.com/iqubik/routerFW/compare/4.44...4.45
+
+
+## ========== TAG: 4.46 ==========
+
+title:	4.46
+tag:	4.46
+draft:	false
+prerelease:	false
+immutable:	false
+author:	iqubik
+created:	2026-02-28T01:05:48Z
+published:	2026-02-28T01:09:36Z
+url:	https://github.com/iqubik/routerFW/releases/tag/4.46
+asset:	routerFW_LinuxDockerBuilder_v28.02.2026_03-21.tar.gz
+asset:	routerFW_WinDockerBuilder_v28.02.2026_03-21.zip
+--
+# RouterFW — Релиз 4.46
+
+**Версия:** 4.46  
+**Период изменений:** от тега 4.45 до текущего состояния
+
+---
+
+## Русский
+
+### Что нового
+
+- **Новые CLI-команды `check` и `check-all`.**  
+  Добавлены команды для работы с контрольными суммами файлов:  
+  — `check-all` — добавить или обновить метку `checksum:MD5` во все файлы, перечисленные в unpacker.  
+  — `check <profile_id>` — добавить или обновить checksum в конкретном файле профиля `profiles/<ID>.conf`.  
+  Это позволяет верифицировать целостность конфигурационных файлов и отслеживать их изменения.
+
+- **Обновление языковых словарей.**  
+  В `system/lang/ru.env` и `system/lang/en.env` добавлены новые ключи для команд работы с checksum: `L_CLI_DESC_CHKSUM_ALL`, `L_CLI_DESC_CHKSUM`, `L_CHKSUM_*`.
+
+- **Версия обновлена до 4.46.**  
+  Номер версии синхронизирован в `_Builder.bat` и `_Builder.sh`.
+
+Зачем? Чтобы сверять профили, чтобы избегать атак подмены кода, чтобы сделать updater.bat как систему обновления RouterFW.
+---
+
+## English
+
+### What's New
+
+- **New CLI commands `check` and `check-all`.**  
+  Added commands for file checksum handling:  
+  — `check-all` — add or update the `checksum:MD5` tag in all files listed in the unpacker.  
+  — `check <profile_id>` — add or update the checksum in a specific profile file `profiles/<ID>.conf`.  
+  This allows verifying configuration file integrity and tracking changes.
+
+- **Language dictionary updates.**  
+  New keys for checksum commands added to `system/lang/ru.env` and `system/lang/en.env`: `L_CLI_DESC_CHKSUM_ALL`, `L_CLI_DESC_CHKSUM`, `L_CHKSUM_*`.
+
+- **Version bumped to 4.46.**  
+  Version number synchronized in `_Builder.bat` and `_Builder.sh`.
+
+What for? To compare profiles, to avoid code substitution attacks, to make an updater.bat as a RouterFW update system.
+---
+
+*Release notes for GitHub — summary of changes from tag 4.45 to current 4.46.*
+
+
+## What's Changed
+* Test cli1 by @iqubik in https://github.com/iqubik/routerFW/pull/28
+* docs: Add check and check-all CLI commands to documentation by @cto-new[bot] in https://github.com/iqubik/routerFW/pull/29
+* Cli md5 by @iqubik in https://github.com/iqubik/routerFW/pull/30
+* Release notes 4.46 (pub.md) by @cto-new[bot] in https://github.com/iqubik/routerFW/pull/31
+
+## New Contributors
+* @cto-new[bot] made their first contribution in https://github.com/iqubik/routerFW/pull/29
+
+**Full Changelog**: https://github.com/iqubik/routerFW/compare/4.45...4.46
+
+
+## ========== TAG: 4.47 ==========
+
+title:	4.47-4.48
+tag:	4.47
+draft:	false
+prerelease:	false
+immutable:	false
+author:	iqubik
+created:	2026-02-28T15:15:55Z
+published:	2026-02-28T15:17:22Z
+url:	https://github.com/iqubik/routerFW/releases/tag/4.47
+asset:	routerFW_LinuxDockerBuilder_v01.03.2026_01-40.tar.gz
+asset:	routerFW_WinDockerBuilder_v01.03.2026_01-41.zip
+--
+# RouterFW — Релиз 4.48
+
+**Версия:** 4.48  
+**Период изменений:** от тега 4.46 до текущего состояния
+
+---
+
+## Русский
+
+### Что нового
+
+Исправлена критическая ошибка кодировки файлов формата *.PS1 (wizard, import)
+
+- **Новая CLI-команда `check-clear`.**  
+  Добавлена команда для удаления контрольных сумм из файлов:  
+  — Без аргументов или с `all` — очищает `checksum:MD5` из всех файлов, перечисленных в unpacker, а также из самого unpacker.  
+  — С указанным ID профиля — очищает checksum только из конкретного файла `profiles/<ID>.conf`.
+
+- **Улучшение скриптов упаковщика (`_packer.sh`, `_packer.bat`).**  
+  Теперь при упаковке генерируется таблица MD5-хешей для распаковщика.  
+  MD5 каждого файла сохраняется и передается в unpacker для логирования при верификации.
+
+- **Улучшение скриптов распаковщика (`_unpacker.sh`, `_unpacker.bat`).**  
+  Теперь при восстановлении файлов в лог выводится MD5-хеш рядом с каждым файлом.  
+  Формат: `[UNPACK] Recover: <filename> - md5(<hash>)`.
+
+- **Обновление языковых словарей.**  
+  В `system/lang/ru.env` и `system/lang/en.env` добавлен новый ключ `L_CLI_DESC_CHKSUM_CLEAR` для команды `check-clear`.  
+  Обновлен текст ключа `L_CHKSUM_ALL_START`.
+
+- **Обновление документации.**  
+  Команда `check-clear` добавлена в таблицы CLI команд в файлах:  
+  — `README.md`  
+  — `README.en.md`  
+  — `docs/ARCHITECTURE_diagram_ru.md`  
+  — `docs/ARCHITECTURE_diagram_en.md`
+
+- **Обновление архивов Docker Builder.**  
+  Новые сборки:  
+  — `routerFW_LinuxDockerBuilder_v01.03.2026_01-40.tar.gz`  
+  — `routerFW_WinDockerBuilder_v01.03.2026_01-41.zip`
+
+---
+
+## English
+
+### What's New
+
+*.PS1 files CRLF BOM FIXed - wizard and import IPK work correct now (_Builder.bat _packer.bat)
+
+- **New CLI command `check-clear`.**  
+  Added a command to remove checksums from files:  
+  — Without arguments or with `all` — clears `checksum:MD5` from all files listed in the unpacker, plus the unpacker itself.  
+  — With a specific profile ID — clears checksum only from that specific `profiles/<ID>.conf` file.
+
+- **Enhanced packer scripts (`_packer.sh`, `_packer.bat`).**  
+  Now generates an MD5 hash table for the unpacker during packaging.  
+  Each file's MD5 is saved and passed to the unpacker for verification logging.
+
+- **Enhanced unpacker scripts (`_unpacker.sh`, `_unpacker.bat`).**  
+  Now displays the MD5 hash next to each recovered file in the log.  
+  Format: `[UNPACK] Recover: <filename> - md5(<hash>)`.
+
+- **Language dictionary updates.**  
+  Added new key `L_CLI_DESC_CHKSUM_CLEAR` for the `check-clear` command to `system/lang/ru.env` and `system/lang/en.env`.  
+  Updated the `L_CHKSUM_ALL_START` text.
+
+- **Documentation updated.**  
+  Added `check-clear` command to CLI tables in:  
+  — `README.md`  
+  — `README.en.md`  
+  — `docs/ARCHITECTURE_diagram_ru.md`  
+  — `docs/ARCHITECTURE_diagram_en.md`
+
+- **Updated Docker Builder archives.**  
+  New builds:  
+  — `routerFW_LinuxDockerBuilder_v01.03.2026_01-40.tar.gz`  
+  — `routerFW_WinDockerBuilder_v01.03.2026_01-41.zip`
+
+---
+
+*Release notes for GitHub — summary of changes from tag 4.46 to current 4.48.*
+
+**Full Changelog**: https://github.com/iqubik/routerFW/compare/4.46...4.47
