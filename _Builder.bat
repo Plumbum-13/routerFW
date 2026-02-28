@@ -2,7 +2,7 @@
 rem file: _Builder.bat
 rem CLI: --lang=RU|EN или -l RU|EN — язык. [ib|src] — режим. build[b], build-all[a|all], edit[e], menuconfig[k], import[i], wizard[w], clean[c], help[-h|--help]. Примеры: --lang=EN build 1, ib build 1.
 
-set "VER_NUM=4.46"
+set "VER_NUM=4.47"
 
 setlocal enabledelayedexpansion
 :: Фиксируем размер окна: 120 символов в ширину, 40 в высоту (пропуск при ROUTERFW_NO_CLS — тестер)
