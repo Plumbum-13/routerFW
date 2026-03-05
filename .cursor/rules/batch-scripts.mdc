@@ -25,6 +25,14 @@ Dictionary is loaded from unified `.env` files (`system/lang/RU.env` / `system/l
 Format: `KEY={C_VAL}value{C_RST}` — neutral pseudo-format, no quotes, `{C_*}` placeholders.
 Loader: custom `for /f "usebackq eol=# tokens=1,* delims==" %%k` block — expands `{C_*}` to ANSI codes via `!_v:{C_VAL}=%C_VAL%!` (early+late expansion). Fallback to `en.env` if file missing.
 
+## PowerShell Integration
+
+When executing a complex PowerShell command from a `.bat` script (e.g., in `tester.bat`), follow these rules to avoid `cmd.exe` parsing issues:
+
+1.  Enclose the entire PowerShell script block in double quotes (`"..."`).
+2.  Use the **full names of PowerShell cmdlets** (e.g., `Where-Object`, `ForEach-Object`) instead of aliases (`?`, `%`).
+3.  Do **not** escape PowerShell operators like `|` with the `^` character inside the quoted string.
+
 ## Feature Parity
 
 `.bat` scripts must stay in sync with their `.sh` counterparts:

@@ -40,18 +40,33 @@
 
 ---
 
+## 🛠️ Вспомогательные утилиты
+
+Для поддержания качества кода и автоматизации проверок в проект добавлены скрипты-тестеры:
+
+- **`tester.bat`** (Windows)
+- **`tester.sh`** (Linux)
+
+Эти скрипты выполняют две основные функции:
+1.  **Тестирование CLI:** Проверяют корректность работы `_Builder` с различными аргументами командной строки, ожидаемые коды выхода и обработку ошибок.
+2.  **Проверка здоровья проекта:** Автоматически валидируют ключевые конвенции, такие как синхронизация ключей локализации и правильное использование BOM-сигнатуры в файлах.
+
+Скрипты поддерживают **паритет функций** для ключевых проверок здоровья и могут запускать как полный набор тестов, так и выборочные проверки по меткам. Запуск без аргументов выполняет все тесты. Чтобы запустить конкретный тест, передайте его метку в кавычках как аргумент, например: `./tester.sh "Localization Keys"`.
+
+---
+
 ## 📋 Краткие выводы
 
 Репозиторий находится в отличном состоянии. Код, документация и конвенции хорошо синхронизированы. Технический долг минимален.
 
 - **Сильные стороны:**
   - **Паритет платформ:** Функциональность на Windows и Linux практически идентична.
+  - **Автоматизированные проверки:** Внедрены `tester`-скрипты для валидации CLI и конвенций проекта.
   - **Актуальная документация:** `README`, `ARCHITECTURE` и `CHANGELOG` полностью отражают состояние проекта.
   - **Строгие конвенции:** Четко определены правила для EOL, именования переменных и структуры.
 
 - **Зоны для улучшения:**
   - **`CODEOWNERS`:** Можно добавить в будущем при расширении команды.
-  - **Тестирование:** Текущие `tester` скрипты выполняют только базовые проверки CLI. Можно расширить покрытие.
 
 ---
 ---
@@ -92,15 +107,30 @@ This document is a technical audit and repository health checklist.
 
 ---
 
+## 🛠️ Auxiliary Utilities
+
+To maintain code quality and automate checks, the project includes tester scripts:
+
+- **`tester.bat`** (Windows)
+- **`tester.sh`** (Linux)
+
+These scripts serve two main functions:
+1.  **CLI Testing:** They verify the correct behavior of `_Builder` with various command-line arguments, expected exit codes, and error handling.
+2.  **Project Health Checks:** They automatically validate key conventions, such as the synchronization of localization keys and the correct use of BOM signatures in files.
+
+The scripts maintain **feature parity** for key health checks and can run either the full test suite or specific checks by labels. Running the script without arguments executes all tests. To run a specific test, pass its label in quotes as an argument, for example: `tester.bat "Localization Keys"`.
+
+---
+
 ## 📋 Summary
 
 The repository is in excellent condition. Code, documentation, and conventions are well-synchronized. Technical debt is minimal.
 
 - **Strengths:**
   - **Platform Parity:** Functionality on Windows and Linux is nearly identical.
+  - **Automated Checks:** `tester` scripts have been implemented to validate the CLI and project conventions.
   - **Up-to-date Documentation:** `README`, `ARCHITECTURE`, and `CHANGELOG` fully reflect the project's state.
   - **Strict Conventions:** Clear rules are defined for EOL, variable naming, and structure.
 
 - **Areas for Improvement:**
   - **`CODEOWNERS`:** Could be added in the future if the team expands.
-  - **Testing:** The current `tester` scripts only perform basic CLI checks. Coverage could be expanded.

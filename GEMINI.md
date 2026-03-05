@@ -112,6 +112,17 @@ The Linux script has advanced features not present in the Windows version:
 - **Toxic Files:** **NEVER** read `_unpacker.bat` or `_unpacker.sh`. They contain huge Base64 payloads. `CHANGELOG.md` is also considered toxic due to its large volume and should not be read without explicit instruction.
 - **Test Dirs:** **IGNORE** `nl_test/` and `nw_test/`. They are temporary unpacking directories for testing and not a source of truth.
 
+### 6.1. Shell Scripting Notes
+
+- **PowerShell from `.bat`:** When executing a complex PowerShell command from a `.bat` script (e.g., in `tester.bat`), follow these rules to avoid `cmd.exe` parsing issues:
+  1.  Enclose the entire PowerShell script block in double quotes (`"..."`).
+  2.  Use the **full names of PowerShell cmdlets** (e.g., `Where-Object`, `ForEach-Object`) instead of aliases (`?`, `%`).
+  3.  Do **not** escape PowerShell operators like `|` with the `^` character inside the quoted string.
+- **Bash Argument Filtering:** For scripts that need to selectively run functions based on command-line arguments (e.g., `tester.sh`), the following pattern is robust and avoids common pitfalls:
+  1.  **Capture arguments globally:** At the beginning of the script, capture all arguments, including those with spaces, into an array: `FILTERS=("$@")`.
+  2.  **Use a filter function:** Create a dedicated function that checks if a given label exists in the `FILTERS` array. If the array is empty, the function should always return true.
+  3.  **Apply as a guard clause:** In each function that can be filtered, use this check as a guard clause at the beginning: `if ! should_run "My Label"; then return 0; fi`. This is much safer than attempting to process the script's arguments (`$@`) inside a function, where `"$@"` refers to the function's own arguments.
+
 ---
 
 ## 7. Utility Scripts (`scripts/`)

@@ -1,8 +1,31 @@
 #!/bin/bash
-# file: tester.sh v1.0
-# Автопроверка CLI _Builder.sh. Первая итерация — только безопасные проверки:
-# ничего не меняем и не ломаем (нет сборок, очистки, menuconfig, wizard, import).
-# Запуск: из корня репозитория, где лежит _Builder.sh.
+# file: tester.sh v1.2
+#
+# Автопроверка CLI _Builder.sh.
+# Запуск без аргументов = все тесты.
+# Запуск с аргументами = только тесты с указанными метками.
+# Пример: ./tester.sh help "Localization Keys"
+#
+# Запуск без аргументов = все тесты.
+# Запуск с аргументами = только тесты с указанными метками.
+# Метки, содержащие пробелы, необходимо заключать в кавычки.
+# Пример: ./tester.sh "Localization Keys" help
+#
+# Доступные метки:
+# --- CLI (Коды выхода 0) ---
+# help, -h, --help, state, s, ib help, src help, image help, source help,
+# --lang=EN help, --lang=RU help, -l EN help, -l RU help, HELP
+#
+# --- CLI (Коды выхода 1) ---
+# build (no id), build spaces, build 999999, build no_such,
+# edit 999999, edit spaces, unknown -> profile not found,
+# --state -> profile not found, --lang=XX help, --lang help, -l help,
+# positional 999999, BUILD no id
+#
+# --- Health Checks (Проверки здоровья) ---
+# Localization Keys
+# BOM Signature
+#
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,12 +35,19 @@ SH="_Builder.sh"
 PASS=0
 FAIL=0
 export ROUTERFW_NO_CLS=1
-# ROUTERFW_NO_CLS — билдер не делает clear, вывод тестера не очищается (если поддерживается)
 
 LOG="$SCRIPT_DIR/tester_log_lin.md"
 TEMP_OUT="$SCRIPT_DIR/tester_tmp_lin_out.txt"
 echo "# tester.sh run $(date '+%Y-%m-%d %H:%M:%S')" > "$LOG"
 echo "" >> "$LOG"
+
+# 1. Сохраняем аргументы скрипта в глобальный массив, сохраняя пробелы
+FILTERS=("$@")
+
+if [ ${#FILTERS[@]} -gt 0 ]; then
+  echo "Running filtered tests: ${FILTERS[*]}"
+  echo ""
+fi
 
 tee_line() {
   if [ -z "${TEE_LINE:-}" ]; then
@@ -29,19 +59,76 @@ tee_line() {
   fi
 }
 
+# Функция проверки фильтра (общая логика)
+should_run() {
+  local label="$1"
+  # Если фильтров нет — запускаем всё
+  if [ ${#FILTERS[@]} -eq 0 ]; then
+    return 0 # true (bash shell exit code 0 means success/true)
+  fi
+  
+  # Проверяем совпадение метки с одним из фильтров
+  for filter in "${FILTERS[@]}"; do
+    if [ "$filter" = "$label" ]; then
+      return 0 # found match
+    fi
+  done
+  
+  return 1 # false (skip)
+}
+
 run() {
   local expect="$1"
   local label="$2"
   shift 2
-  local cmd="$*"
+  
+  # Проверка фильтрации
+  if ! should_run "$label"; then
+    return 0
+  fi
+
   TEE_LINE="" tee_line
-  TEE_LINE="--- $label | cmd: $cmd ---" tee_line
+  TEE_LINE="--- Test: $label ---" tee_line
+  
   set +e
   "$SCRIPT_DIR/$SH" "$@" > "$TEMP_OUT" 2>&1
   local got=$?
   set -e
+  
   cat "$TEMP_OUT"
   cat "$TEMP_OUT" >> "$LOG"
+  
+  TEE_LINE="" tee_line
+  if [ "$expect" = "$got" ]; then
+    TEE_LINE="[OK] $label" tee_line
+    ((PASS++)) || true
+  else
+    TEE_LINE="[FAIL] $label (expected exit $expect, got $got)" tee_line
+    ((FAIL++)) || true
+  fi
+}
+
+run_check() {
+  local expect="$1"
+  local label="$2"
+  local cmd="$3"
+
+  # Проверка фильтрации
+  if ! should_run "$label"; then
+    return 0
+  fi
+
+  TEE_LINE="" tee_line
+  TEE_LINE="--- Check: $label ---" tee_line
+  
+  set +e
+  bash -c "$cmd" > "$TEMP_OUT" 2>&1
+  local got=$?
+  set -e
+  
+  cat "$TEMP_OUT"
+  cat "$TEMP_OUT" >> "$LOG"
+  
   TEE_LINE="" tee_line
   if [ "$expect" = "$got" ]; then
     TEE_LINE="[OK] $label" tee_line
@@ -71,7 +158,7 @@ run 0 "--lang=RU help" --lang=RU help
 run 0 "-l EN help" -l EN help
 run 0 "-l RU help" -l RU help
 
-# --- Ожидание: exit 1 (ошибки, без побочных эффектов) ---
+# --- Ожидание: exit 1 (ошибки) ---
 run 1 "build (no id)" build
 run 1 "build spaces" build "   "
 run 1 "build 999999" build 999999
@@ -118,6 +205,34 @@ run 1 "BUILD no id" BUILD
 # clean без аргументов → интерактивное меню (не проверяем автоматически)
 # clean 9 → docker prune (не проверяем)
 # clean 1 N, clean 2 N ... → реальная очистка (не проверяем)
+
+# --- Project Health Checks ---
+TEE_LINE="" tee_line
+TEE_LINE="=== Project Health Checks ===" tee_line
+TEE_LINE="" tee_line
+
+# Сравнение ключей
+run_check 0 "Localization Keys" "diff <(grep -E '^(L_|H_)' system/lang/ru.env | sed 's/=.*//' | sort) <(grep -E '^(L_|H_)' system/lang/en.env | sed 's/=.*//' | sort)"
+
+# Проверка BOM
+BOM_CHECK_CMD="
+  test_bom() { [[ \"\$(head -c 3 \"\$1\")\" == \$'\\xef\\xbb\\xbf' ]]; };
+  errors=0;
+  BOM_EXPECTED=('system/create_profile.ps1' 'system/import_ipk.ps1');
+  NO_BOM_EXPECTED=('_Builder.sh' 'system/lang/ru.env' 'README.md');
+  for f in \"\${BOM_EXPECTED[@]}\"; do 
+    if [ -f \"\$f\" ]; then
+        test_bom \"\$f\" || { echo \"BOM missing in \$f\"; ((errors++)); }; 
+    fi
+  done;
+  for f in \"\${NO_BOM_EXPECTED[@]}\"; do 
+    if [ -f \"\$f\" ]; then
+        test_bom \"\$f\" && { echo \"Unexpected BOM in \$f\"; ((errors++)); }; 
+    fi
+  done;
+  exit \$errors
+"
+run_check 0 "BOM Signature" "$BOM_CHECK_CMD"
 
 TEE_LINE="" tee_line
 TEE_LINE="=== Итого: $PASS OK, $FAIL FAIL ===" tee_line

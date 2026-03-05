@@ -41,3 +41,32 @@ Loader: `load_lang()` function — `while read` loop + `${val//\{C_VAL\}/$C_VAL}
 Builder scripts run inside Docker containers. They receive configuration via:
 - Environment variables from docker-compose (`CONF_FILE`, `HOST_OUTPUT_DIR`)
 - Mounted volumes for profiles, packages, files, output, and cache
+
+## Argument Filtering
+
+For scripts that selectively run parts of their code based on command-line arguments (like `tester.sh`), use the following robust pattern:
+
+1.  **Capture arguments globally:** At the top of the script, capture all arguments, including those with spaces, into an array. This makes the filters globally available.
+    ```bash
+    FILTERS=("$@")
+    ```
+
+2.  **Use a filter function:** Create a single, reusable function to check if a given label matches any of the stored filters. If the filter array is empty, it should always permit execution.
+    ```bash
+    should_run() {
+      local label="$1"
+      if [ ${#FILTERS[@]} -eq 0 ]; then return 0; fi # No filters = run all
+      for filter in "${FILTERS[@]}"; do
+        if [ "$filter" = "$label" ]; then return 0; fi # Match found
+      done
+      return 1 # No match
+    }
+    ```
+
+3.  **Apply as a guard clause:** In any function that can be filtered, use this check at the very beginning. This is clean, safe, and avoids the common error of misinterpreting a function's arguments (`$@`) as the script's arguments.
+    ```bash
+    my_feature() {
+      if ! should_run "My Feature Label"; then return 0; fi
+      # ... rest of the function logic
+    }
+    ```
