@@ -65,7 +65,6 @@ FILES=(
     "scripts/packager.sh"
     "profiles/giga_24105_main_full.conf"
     "profiles/rax3000m_emmc_test_new.conf"
-    "profiles/xiaomi_4a_gigabit_23056_full.conf"
     "profiles/tplink_841n_v9_190710_full.conf"
     "profiles/friendlyarm_nanopi_r3s_24105_ow_full.conf"
     "custom_files/rax3000m_emmc_test_new/hooks.sh"
