@@ -30,7 +30,7 @@ EXTROOT_SIZE_GB="4"
 # Размер раздела подкачки.
 SWAP_SIZE_GB="2"
 # Версия скрипта для логирования и отслеживания.
-VERSION="2.17"
+VERSION="2.18"
 
 # Имена разделов определены для ясности и простоты обслуживания.
 PART_ROOT="${DISK}p6"
@@ -68,7 +68,7 @@ command -v sgdisk >/dev/null || PKGS="$PKGS gptfdisk"
 command -v partprobe >/dev/null || PKGS="$PKGS parted"
 if ! opkg list-installed | grep -q transmission-daemon; then PKGS="$PKGS transmission-daemon"; fi
 
-if [ -n "$PKGS" ]; then
+if[ -n "$PKGS" ]; then
     info "--> Установка недостающих пакетов: $PKGS"
     opkg update
     opkg install $PKGS || fail "Не удалось установить пакеты."
@@ -81,7 +81,7 @@ info "[Этап 1/5] Зависимости в порядке."
 # [ЭТАП 2/5] РАЗМЕТКА ДИСКА
 #
 info "[Этап 2/5] Проверка/создание разделов..."
-if ! [ -b "$PART_SWAP" ]; then
+if ![ -b "$PART_SWAP" ]; then
     info "--> Раздел ${PART_SWAP} не найден. Требуется полная переразметка."
     info "--> НАЧАЛО РАЗМЕТКИ ДИСКА (метод sgdisk)..."
     
@@ -160,13 +160,43 @@ rm -rf "$MNT_TEST"
 info "[Этап 3/5] Файловые системы в порядке."
 
 #
-# [ЭТАП 4/5] НАСТРОЙКА СИСТЕМЫ
+# [ЭТАП 4/5] НАСТРОЙКА ПАПКИ ЗАГРУЗОК И ССЫЛКИ (ДО СОЗДАНИЯ СЛЕПКА)
 #
-info "[Этап 4/5] Настройка extroot..."
+info "[Этап 4/5] Настройка структуры папок и ссылки /mnt/down..."
+
+# 1. Убеждаемся, что раздел данных смонтирован.
+mkdir -p /mnt/data
+if ! mount | grep -q 'on /mnt/data'; then
+    info "--> /mnt/data не смонтирован, монтирую временно..."
+    mount "$PART_DATA" /mnt/data || fail "Не удалось смонтировать /mnt/data"
+fi
+
+# 2. Создаем целевые директории на разделе данных.
+info "--> Создание директорий docker и downloads..."
+mkdir -p /mnt/data/docker
+mkdir -p /mnt/data/downloads
+
+# 3. Настраиваем права для Transmission на ЦЕЛЕВОЙ директории.
+info "--> Настройка прав для /mnt/data/downloads..."
+chown -R transmission:transmission /mnt/data/downloads
+chmod -R g+rw /mnt/data/downloads
+
+# 4. Принудительно создаем симлинк и чистим хвосты automount.
+info "--> Принудительное создание симлинка /mnt/down..."
+rm -rf /mnt/down
+# Убираем папку, которую мог создать automount вместо нашего раздела, чтобы не мешала[ -d "/mnt/mmcblk0p7" ] && rm -rf /mnt/mmcblk0p7 
+ln -sfn /mnt/data/downloads /mnt/down
+
+info "[Этап 4/5] Настройка папки загрузок завершена."
+
+#
+# [ЭТАП 5/5] НАСТРОЙКА EXTROOT И КОПИРОВАНИЕ
+#
+info "[Этап 5/5] Настройка extroot..."
 MNT_EXTROOT="/mnt/new_extroot"
 
 for part in "$PART_ROOT" "$PART_DATA" "$PART_SWAP"; do
-    i=0; while [ $i -lt 10 ]; do [ -b "$part" ] && break; sleep 1; i=$((i+1)); done
+    i=0; while[ $i -lt 10 ]; do [ -b "$part" ] && break; sleep 1; i=$((i+1)); done
     [ -b "$part" ] || fail "Раздел $part так и не появился."
 done
 
@@ -180,19 +210,20 @@ info "--> Монтирование ${PART_ROOT} в ${MNT_EXTROOT}..."
 mount "$PART_ROOT" "$MNT_EXTROOT" || fail "Не удалось смонтировать $PART_ROOT"
 
 info "--> Копирование данных из /overlay в ${MNT_EXTROOT}..."
+# Теперь tar скопирует УЖЕ созданный симлинк /mnt/down и точку /mnt/data!
 tar -C /overlay -cvf - . | tar -C "$MNT_EXTROOT" -xf -
 
 # === ИСПРАВЛЕНИЕ "ПАПОК-ПРИЗРАКОВ" ===
-info "--> Полная очистка системной папки /mnt внутри нового extroot..."
-# Чистим именно внутри upper, так как это станет твоим новым корнем после ребута
-rm -rf "$MNT_EXTROOT/upper/mnt" && mkdir -p "$MNT_EXTROOT/upper/mnt"
-# На всякий случай чистим и корень раздела (вне overlay)
-rm -rf "$MNT_EXTROOT/mnt" && mkdir -p "$MNT_EXTROOT/mnt"
+info "--> Точечная очистка папок-призраков от automount внутри нового extroot..."
+# Удаляем только папки, созданные automount (начинаются с mmcblk),
+# сохраняя при этом /mnt/data и /mnt/down, которые мы заботливо создали на этапе 4.
+rm -rf "$MNT_EXTROOT/upper/mnt/mmcblk"* 2>/dev/null
+rm -rf "$MNT_EXTROOT/mnt/mmcblk"* 2>/dev/null
 # =====================================
 
-    info "--> Генерация fstab на новом extroot..."
-    FSTAB_PATH="$MNT_EXTROOT/upper/etc/config/fstab"
-    cat > "$FSTAB_PATH" <<EOF
+info "--> Генерация fstab на новом extroot..."
+FSTAB_PATH="$MNT_EXTROOT/upper/etc/config/fstab"
+cat > "$FSTAB_PATH" <<EOF
 config global
 	option anon_swap '0'
 	option anon_mount '0'
@@ -219,45 +250,16 @@ EOF
 
 info "--> Копирование fstab в текущую систему..."
 cp -f "$FSTAB_PATH" /etc/config/fstab || fail "Не удалось скопировать fstab"
+
 info "--> Отмонтирование и финальная очистка текущей системы..."
 umount -l "$MNT_EXTROOT" 2>/dev/null
 rm -rf "$MNT_EXTROOT"
-rm -rf "$MNT_TEST"
 
 # Удаляем мусор automount текущей сессии, игнорируя ошибки, если папки заняты
 rm -rf /mnt/mmcblk0p* 2>/dev/null
 info "--> Текущая система очищена. Подготовка к перезагрузке..."
 
-#
-# [ЭТАП 5/5] НАСТРОЙКА ПАПКИ ЗАГРУЗОК И ССЫЛКИ
-#
-info "[Этап 5/5] Настройка папки загрузок и ссылки /mnt/down..."
-
-# 1. Убеждаемся, что раздел данных смонтирован.
-info "[Этап 5/5] Настройка папки загрузок..."
-mkdir -p /mnt/data
-if ! mount | grep -q 'on /mnt/data'; then
-    info "--> /mnt/data не смонтирован, монтирую..."
-    mount "$PART_DATA" /mnt/data || fail "Не удалось смонтировать /mnt/data"
-fi
-
-# 2. Создаем целевые директории на разделе данных.
-mkdir -p /mnt/data/docker
-mkdir -p /mnt/data/downloads
-
-# 3. Настраиваем права для Transmission на ЦЕЛЕВОЙ директории.
-info "--> Настройка прав для /mnt/data/downloads..."
-chown -R transmission:transmission /mnt/data/downloads
-chmod -R g+rw /mnt/data/downloads
-
-# 4. Принудительно создаем симлинк и чистим хвосты automount.
-info "--> Принудительное создание симлинка /mnt/down..."
-rm -rf /mnt/down
-# Убираем папку, которую мог создать automount вместо нашего раздела
-[ -d "/mnt/mmcblk0p7" ] && rm -rf /mnt/mmcblk0p7 
-ln -sfn /mnt/data/downloads /mnt/down
-
-info "[Этап 5/5] Настройка папки загрузок завершена."
+info "[Этап 5/5] Настройка extroot завершена."
 
 # Отправляем команду перезагрузки в фон, чтобы скрипт успел вернуть код 0
 # и система могла корректно удалить его из /etc/uci-defaults/
