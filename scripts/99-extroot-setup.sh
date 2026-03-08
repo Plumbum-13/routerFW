@@ -1,5 +1,6 @@
 #!/bin/sh
 # Extroot Setup Script for OpenWrt
+VERSION="2.19"
 # (Оптимизировано для uci-defaults)
 #
 # АРХИТЕКТУРА:
@@ -29,8 +30,6 @@ DISK="/dev/mmcblk0"
 EXTROOT_SIZE_GB="4"
 # Размер раздела подкачки.
 SWAP_SIZE_GB="2"
-# Версия скрипта для логирования и отслеживания.
-VERSION="2.18"
 
 # Имена разделов определены для ясности и простоты обслуживания.
 PART_ROOT="${DISK}p6"
@@ -68,7 +67,7 @@ command -v sgdisk >/dev/null || PKGS="$PKGS gptfdisk"
 command -v partprobe >/dev/null || PKGS="$PKGS parted"
 if ! opkg list-installed | grep -q transmission-daemon; then PKGS="$PKGS transmission-daemon"; fi
 
-if[ -n "$PKGS" ]; then
+if [ -n "$PKGS" ]; then
     info "--> Установка недостающих пакетов: $PKGS"
     opkg update
     opkg install $PKGS || fail "Не удалось установить пакеты."
@@ -81,7 +80,7 @@ info "[Этап 1/5] Зависимости в порядке."
 # [ЭТАП 2/5] РАЗМЕТКА ДИСКА
 #
 info "[Этап 2/5] Проверка/создание разделов..."
-if ![ -b "$PART_SWAP" ]; then
+if ! [ -b "$PART_SWAP" ]; then
     info "--> Раздел ${PART_SWAP} не найден. Требуется полная переразметка."
     info "--> НАЧАЛО РАЗМЕТКИ ДИСКА (метод sgdisk)..."
     
@@ -184,7 +183,8 @@ chmod -R g+rw /mnt/data/downloads
 # 4. Принудительно создаем симлинк и чистим хвосты automount.
 info "--> Принудительное создание симлинка /mnt/down..."
 rm -rf /mnt/down
-# Убираем папку, которую мог создать automount вместо нашего раздела, чтобы не мешала[ -d "/mnt/mmcblk0p7" ] && rm -rf /mnt/mmcblk0p7 
+# Убираем папку, которую мог создать automount вместо нашего раздела, чтобы не мешала
+[ -d "/mnt/mmcblk0p7" ] && rm -rf /mnt/mmcblk0p7 
 ln -sfn /mnt/data/downloads /mnt/down
 
 info "[Этап 4/5] Настройка папки загрузок завершена."
@@ -196,7 +196,7 @@ info "[Этап 5/5] Настройка extroot..."
 MNT_EXTROOT="/mnt/new_extroot"
 
 for part in "$PART_ROOT" "$PART_DATA" "$PART_SWAP"; do
-    i=0; while[ $i -lt 10 ]; do [ -b "$part" ] && break; sleep 1; i=$((i+1)); done
+    i=0; while [ $i -lt 10 ]; do [ -b "$part" ] && break; sleep 1; i=$((i+1)); done
     [ -b "$part" ] || fail "Раздел $part так и не появился."
 done
 
@@ -213,39 +213,43 @@ info "--> Копирование данных из /overlay в ${MNT_EXTROOT}...
 # Теперь tar скопирует УЖЕ созданный симлинк /mnt/down и точку /mnt/data!
 tar -C /overlay -cvf - . | tar -C "$MNT_EXTROOT" -xf -
 
-# === ИСПРАВЛЕНИЕ "ПАПОК-ПРИЗРАКОВ" ===
+# === ИСПРАВЛЕНИЕ "ПАПОК-ПРИЗРАКОВ" И ФИКСАЦИЯ СИМЛИНКА ===
 info "--> Точечная очистка папок-призраков от automount внутри нового extroot..."
 # Удаляем только папки, созданные automount (начинаются с mmcblk),
 # сохраняя при этом /mnt/data и /mnt/down, которые мы заботливо создали на этапе 4.
 rm -rf "$MNT_EXTROOT/upper/mnt/mmcblk"* 2>/dev/null
 rm -rf "$MNT_EXTROOT/mnt/mmcblk"* 2>/dev/null
-# =====================================
+
+info "--> ЖЕЛЕЗОБЕТОННАЯ фиксация симлинка внутри нового extroot..."
+rm -rf "$MNT_EXTROOT/upper/mnt/down"
+ln -sfn /mnt/data/downloads "$MNT_EXTROOT/upper/mnt/down"
+# =========================================================
 
 info "--> Генерация fstab на новом extroot..."
 FSTAB_PATH="$MNT_EXTROOT/upper/etc/config/fstab"
 cat > "$FSTAB_PATH" <<EOF
 config global
-	option anon_swap '0'
-	option anon_mount '0'
-	option auto_swap '1'
-	option auto_mount '1'
-	option delay_root '5'
-	option check_fs '1'
+    option anon_swap '0'
+    option anon_mount '0'
+    option auto_swap '1'
+    option auto_mount '1'
+    option delay_root '5'
+    option check_fs '1'
 config mount
-	option target '/rom'
-	option uuid '3d1747c3-d71d815e-fecac4ae-7494d1e2'
-	option enabled '0'
+    option target '/rom'
+    option uuid '3d1747c3-d71d815e-fecac4ae-7494d1e2'
+    option enabled '0'
 config mount
-	option target '/overlay'
-	option uuid '$UUID_ROOT'
-	option enabled '1'
+    option target '/overlay'
+    option uuid '$UUID_ROOT'
+    option enabled '1'
 config mount
-	option target '/mnt/data'
-	option uuid '$UUID_DATA'
-	option enabled '1'
+    option target '/mnt/data'
+    option uuid '$UUID_DATA'
+    option enabled '1'
 config swap
-	option device '$PART_SWAP'
-	option enabled '1'
+    option device '$PART_SWAP'
+    option enabled '1'
 EOF
 
 info "--> Копирование fstab в текущую систему..."
