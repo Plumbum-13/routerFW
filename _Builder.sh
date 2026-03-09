@@ -1700,6 +1700,11 @@ while true; do
             echo ""
             read -p "$L_PRESS_ENTER"
             ;;
+        P)
+            if [ -f "_packer.sh" ]; then
+                bash "_packer.sh"
+            fi
+            ;;
         C)
             cleanup_wizard ;;
         I)
@@ -1730,4 +1735,4 @@ while true; do
             ;;
     esac
 done
-# checksum:MD5=a43d6e3470341ac218c6caf9e9c2d69d
+# checksum:MD5=ff3e5999ef6a065aeaea448d6b2aff42
