@@ -1695,6 +1695,11 @@ while true; do
                     run_menuconfig "${profiles[$k_id]}"
                 fi
             fi ;;
+        F)
+            do_checksum_all
+            echo ""
+            read -p "$L_PRESS_ENTER"
+            ;;
         C)
             cleanup_wizard ;;
         I)
@@ -1725,4 +1730,4 @@ while true; do
             ;;
     esac
 done
-# checksum:MD5=f950c0f86abd7bc29e3d0858e3c8ea24
+# checksum:MD5=a43d6e3470341ac218c6caf9e9c2d69d
