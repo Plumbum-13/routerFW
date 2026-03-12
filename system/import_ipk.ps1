@@ -1,5 +1,5 @@
 ﻿# file : system/import_ipk.ps1
-# Скрипт импорта IPK v2.61 (version ipk fix)
+# Скрипт импорта IPK v2.7 (apk support)
 param (
     [Parameter(Mandatory=$false)]
     [string]$ProfileID = "",
@@ -47,48 +47,68 @@ Write-Host "==========================================================" -Foregro
 
 # --- ПРОВЕРКИ ОКРУЖЕНИЯ ---
 if (-not (Test-Path $ipkDir)) { Write-Host "[!] Folder $ipkDir not found." -ForegroundColor Yellow; exit }
-$ipkFiles = Get-ChildItem -Path "$ipkDir\*.ipk"
-if ($ipkFiles.Count -eq 0) { Write-Host "[!] No .ipk files found in $ipkDir" -ForegroundColor Yellow; exit }
+$ipkFiles = Get-ChildItem -Path $ipkDir | Where-Object { $_.Extension -match '\.(ipk|apk)$' }
+if ($ipkFiles.Count -eq 0) { Write-Host "[!] No .ipk or .apk files found in $ipkDir" -ForegroundColor Yellow; exit }
 if (-not (Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir | Out-Null }
 
 foreach ($ipk in $ipkFiles) {
     Write-Host "[+] Processing: $($ipk.Name)..." -ForegroundColor Cyan
     
-    # 1. Распаковка метаданных
+    # 1. Подготовка папок
     if (Test-Path $tempDir) { Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue }
     $null = New-Item -ItemType Directory -Path "$tempDir\unpack" -Force
-    
-    # 2. Распаковка IPK (используем встроенный tar Windows)
-    tar -xf "$ipkDir\$($ipk.Name)" -C "$tempDir\unpack"
-    
-    # 3. Распаковка control.tar.gz
     $null = New-Item -ItemType Directory -Path "$tempDir\control_data" -Force
-    if (Test-Path "$tempDir\unpack\control.tar.gz") {
-        tar -xf "$tempDir\unpack\control.tar.gz" -C "$tempDir\control_data"
-    }
+    
+    $isApk = ($ipk.Extension -eq ".apk")
+    $pkgName = ""; $pkgVersion = ""; $pkgDeps = ""; $pkgArch = ""; $postinst = ""; $depsList = @()
 
-    # 4. Глубокий парсинг файла Control
-    $pkgName = ""; $pkgVersion = ""; $pkgDeps = ""; $pkgArch = ""; $postinst = ""
-    if (Test-Path "$tempDir\control_data\control") {
-        $controlContent = Get-Content "$tempDir\control_data\control"
-        foreach($line in $controlContent) {
-            if ($line -match "^Package: (.*)") { $pkgName = $matches[1].Trim() }
-            if ($line -match "^Version: (.*)") { $pkgVersion = $matches[1].Trim() }
-            if ($line -match "^Architecture: (.*)") { $pkgArch = $matches[1].Trim() }
-            if ($line -match "^Depends: (.*)") { 
-                $depsRaw = ($line -split ":")[1].Trim() -replace ",", " "
-                $depsList = $depsRaw -split "\s+" | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "libc" -and $_ -ne "" }            
-                
-                # Маппинг зависимостей
-                $depsList = $depsList | ForEach-Object {
-                    if ($_ -eq "libnetfilter-queue1") { "libnetfilter-queue" }
-                    elseif ($_ -eq "libnfnetlink0") { "libnfnetlink" }
-                    elseif ($_ -eq "libopenssl1.1") { "libopenssl" }
-                    else { $_ }
+    if ($isApk) {
+        # 2a. Распаковка APK (достаем только метаданные, чтобы не испортить симлинки)
+        tar -xf "$ipkDir\$($ipk.Name)" -C "$tempDir\unpack" ".PKGINFO" ".post-install" 2>$null
+        if (-not (Test-Path "$tempDir\unpack\.PKGINFO")) { tar -xf "$ipkDir\$($ipk.Name)" -C "$tempDir\unpack" 2>$null }
+
+        if (Test-Path "$tempDir\unpack\.PKGINFO") {
+            $controlContent = Get-Content "$tempDir\unpack\.PKGINFO"
+            foreach($line in $controlContent) {
+                if ($line -match "^pkgname = (.*)") { $pkgName = $matches[1].Trim() }
+                if ($line -match "^pkgver = (.*)") { $pkgVersion = $matches[1].Trim() }
+                if ($line -match "^arch = (.*)") { $pkgArch = $matches[1].Trim() }
+                if ($line -match "^depend = (.*)") { 
+                    $depsList = $matches[1].Trim() -split "\s+" | ForEach-Object { $_.Trim() }
                 }
-                if ($depsList) { $pkgDeps = "+" + ($depsList -join " +") }
             }
         }
+        if (Test-Path "$tempDir\unpack\.post-install") { $postinst = Get-Content "$tempDir\unpack\.post-install" -Raw }
+    } else {
+        # 2b. Распаковка IPK
+        tar -xf "$ipkDir\$($ipk.Name)" -C "$tempDir\unpack"
+        if (Test-Path "$tempDir\unpack\control.tar.gz") { tar -xf "$tempDir\unpack\control.tar.gz" -C "$tempDir\control_data" }
+        
+        # 3. Парсинг файла control
+        if (Test-Path "$tempDir\control_data\control") {
+            $controlContent = Get-Content "$tempDir\control_data\control"
+            foreach($line in $controlContent) {
+                if ($line -match "^Package: (.*)") { $pkgName = $matches[1].Trim() }
+                if ($line -match "^Version: (.*)") { $pkgVersion = $matches[1].Trim() }
+                if ($line -match "^Architecture: (.*)") { $pkgArch = $matches[1].Trim() }
+                if ($line -match "^Depends: (.*)") { 
+                    $depsList = (($line -split ":")[1].Trim() -replace ",", " ") -split "\s+" | ForEach-Object { $_.Trim() }
+                }
+            }
+        }
+        if (Test-Path "$tempDir\control_data\postinst") { $postinst = Get-Content "$tempDir\control_data\postinst" -Raw }
+    }
+
+    # 4. Общая обработка зависимостей (Маппинг)
+    if ($depsList) {
+        $mappedDeps = $depsList | Where-Object { $_ -ne "libc" -and $_ -ne "" } | ForEach-Object {
+            if ($_ -match "^(so|cmd|pc):") { $null } # Игнорируем виртуальные зависимости APK
+            elseif ($_ -eq "libnetfilter-queue1") { "libnetfilter-queue" }
+            elseif ($_ -eq "libnfnetlink0") { "libnfnetlink" }
+            elseif ($_ -eq "libopenssl1.1") { "libopenssl" }
+            else { $_ }
+        } | Where-Object { $null -ne $_ }
+        if ($mappedDeps) { $pkgDeps = "+" + ($mappedDeps -join " +") }
     }
 
     if (-not $pkgName) { Write-Host "    [!] Error: Could not parse package name. Skipping." -ForegroundColor Red; continue }
@@ -116,8 +136,7 @@ foreach ($ipk in $ipkFiles) {
     }
 
     # 6. Обработка Post-Install
-    if (Test-Path "$tempDir\control_data\postinst") {
-        $postinst = Get-Content "$tempDir\control_data\postinst" -Raw        
+    if ($postinst) {
         # Убираем лишние шебанги (#!/bin/sh), если они есть внутри импортируемого кода
         $postinst = $postinst -replace '(?m)^#!/.+$', ''        
         # Экранируем знак доллара для Makefile (превращаем $ в $$)
@@ -140,10 +159,15 @@ foreach ($ipk in $ipkFiles) {
     
     # 8. Финализация импорта
     $null = New-Item -ItemType Directory -Path $targetPkgDir -Force
-    if (Test-Path "$tempDir\unpack\data.tar.gz") {
-        Copy-Item "$tempDir\unpack\data.tar.gz" -Destination "$targetPkgDir\data.tar.gz"
+    if ($isApk) {
+        # Для APK просто копируем исходный файл (как payload)
+        Copy-Item "$ipkDir\$($ipk.Name)" -Destination "$targetPkgDir\data.apk"
     } else {
-        Write-Host "    [!] Error: data.tar.gz not found!" -ForegroundColor Red; continue
+        if (Test-Path "$tempDir\unpack\data.tar.gz") {
+            Copy-Item "$tempDir\unpack\data.tar.gz" -Destination "$targetPkgDir\data.tar.gz"
+        } else {
+            Write-Host "    [!] Error: data.tar.gz not found!" -ForegroundColor Red; continue
+        }
     }
 
     # --- 9. ГЕНЕРАЦИЯ УМНОГО MAKEFILE ---
@@ -168,8 +192,7 @@ define Package/$(PKG_NAME)
 endef
 
 define Build/Prepare
-	mkdir -p $(PKG_BUILD_DIR)
-	cp ./data.tar.gz $(PKG_BUILD_DIR)/
+	mkdir -p $(PKG_BUILD_DIR)[ -f ./data.tar.gz ] && cp ./data.tar.gz $(PKG_BUILD_DIR)/ || true[ -f ./data.apk ] && cp ./data.apk $(PKG_BUILD_DIR)/ || true
 endef
 
 define Build/Compile
@@ -178,8 +201,12 @@ endef
 
 define Package/$(PKG_NAME)/install
 	mkdir -p $(1)
-	# Распаковка внутри Linux сохраняет симлинки и структуру
-	tar -xzf $(PKG_BUILD_DIR)/data.tar.gz -C $(1)
+	# Распаковка внутри Linux сохраняет симлинки. tar -xf сам понимает формат (gz/zstd).
+	if[ -f $(PKG_BUILD_DIR)/data.tar.gz ]; then \
+		tar -xf $(PKG_BUILD_DIR)/data.tar.gz -C $(1); \
+	elif [ -f $(PKG_BUILD_DIR)/data.apk ]; then \
+		tar -xf $(PKG_BUILD_DIR)/data.apk -C $(1) --exclude=.PKGINFO --exclude=.SIGN.* --exclude=.post-install --exclude=.pre-install; \
+	fi
 	# Принудительная правка прав для скриптов и бинарников
 	[ -d $(1)/etc/init.d ] && chmod +x $(1)/etc/init.d/* || true
 	[ -d $(1)/usr/bin ] && chmod +x $(1)/usr/bin/* || true
