@@ -1,7 +1,7 @@
 #!/bin/bash
-
 # file : system/import_ipk.sh
-# Скрипт импорта IPK v2.7 (version ipk/apk fix)
+SCRIPT_VERSION="2.9"
+# Скрипт импорта IPK/APK (version ipk/apk fix)
 # Портировано с PowerShell на Bash
 # --- ПАРАМЕТРЫ ---
 PROFILE_ID=$1
@@ -17,7 +17,7 @@ C_WHT='\033[1;37m'
 C_RST='\033[0m'
 
 # --- ПРОВЕРКА ЗАВИСИМОСТЕЙ ---
-for cmd in curl jq tar ar; do
+for cmd in curl jq tar ar docker; do
     if ! command -v $cmd &> /dev/null; then
         echo -e "${C_RED}Ошибка: утилита '$cmd' не найдена. Установите её (sudo apt install binutils)${C_RST}"
     fi
@@ -37,7 +37,7 @@ OVERWRITE_ALL=false
 IMPORTED_COUNT=0
 
 echo -e "\n${C_CYAN}==========================================================${C_RST}"
-echo -e "  IPK IMPORT WIZARD v2.7 [$TARGET_ARCH] [Source Mode]"
+echo -e "  IPK IMPORT WIZARD v$SCRIPT_VERSION [$TARGET_ARCH] [Source Mode]"
 echo -e "${C_CYAN}==========================================================${C_RST}"
 
 PROFILE_DISP="${PROFILE_ID:-GLOBAL}"
@@ -92,25 +92,34 @@ for IPK_PATH in "${IPK_FILES[@]}"; do
     POSTINST_CONTENT=""
 
     if [ "$IS_APK" = true ]; then
-        # 2a. Распаковка APK (метаданные)
-        tar -xf "$IPK_PATH" -C "$TEMP_DIR/unpack" ".PKGINFO" ".post-install" 2>/dev/null || tar -xf "$IPK_PATH" -C "$TEMP_DIR/unpack" 2>/dev/null
+        # 2a. Распаковка APK v3 (через Docker/apk-tools)
+        echo -e "    ${C_CYAN}[*] APK v3 detected. Using Docker 'apk adbdump'...${C_RST}"
         
-        PKGINFO_FILE="$TEMP_DIR/unpack/.PKGINFO"
-        if [ -f "$PKGINFO_FILE" ]; then
-            PKG_NAME=$(grep "^pkgname = " "$PKGINFO_FILE" | sed 's/^pkgname = //' | tr -d '\r ')
-            PKG_VERSION=$(grep "^pkgver = " "$PKGINFO_FILE" | sed 's/^pkgver = //' | tr -d '\r ')
-            PKG_ARCH=$(grep "^arch = " "$PKGINFO_FILE" | sed 's/^arch = //' | tr -d '\r ')
+        # Получаем абсолютный путь к папке файла для Docker
+        APK_DIR=$(cd "$(dirname "$IPK_PATH")" && pwd)
+        APK_FILE=$(basename "$IPK_PATH")
+        
+        # Выполняем docker adbdump
+        ADBDUMP_OUT=$(docker run --rm -v "$APK_DIR:/data" alpine:latest apk adbdump "/data/$APK_FILE" 2>/dev/null)
+        
+        if [ -n "$ADBDUMP_OUT" ]; then
+            PKG_NAME=$(echo "$ADBDUMP_OUT" | grep -m 1 "^  name: " | sed 's/.*name: //')
+            PKG_VERSION=$(echo "$ADBDUMP_OUT" | grep -m 1 "^  version: " | sed 's/.*version: //')
+            PKG_ARCH=$(echo "$ADBDUMP_OUT" | grep -m 1 "^  arch: " | sed 's/.*arch: //')
             
-            # Парсинг зависимостей (исключаем виртуальные so:, cmd:, pc:)
-            RAW_DEPS=$(grep "^depend = " "$PKGINFO_FILE" | sed 's/^depend = //' | tr -d '\r')
+            # Парсинг зависимостей (между depends: и provides:)
+            RAW_DEPS=$(echo "$ADBDUMP_OUT" | awk '/depends:/{flag=1; next} /provides:/{flag=0} flag {print}' | grep "^    - " | sed 's/.*- //')
             for dep in $RAW_DEPS; do
                 if [[ "$dep" =~ ^(so|cmd|pc): ]]; then continue; fi
                 [ -z "$PKG_DEPS" ] && PKG_DEPS="+$dep" || PKG_DEPS="$PKG_DEPS +$dep"
             done
-        fi
-        
-        if [ -f "$TEMP_DIR/unpack/.post-install" ]; then
-            POSTINST_CONTENT=$(sed 's/^#!.*//' "$TEMP_DIR/unpack/.post-install" | sed 's/\$/\\$\\$/g')
+            
+            # Извлечение post-install (удаляем отступы YAML)
+            POSTINST_CONTENT=$(echo "$ADBDUMP_OUT" | awk '/post-install: \|/{flag=1; next} /^[a-z]/{flag=0} flag {print}' | sed 's/^    //')
+            echo -e "    ${C_GRN}[+] Metadata extracted successfully via Docker.${C_RST}"
+        else
+            echo -e "    ${C_RED}[!] Docker command failed or returned empty output.${C_RST}"
+            PKG_NAME="" # Отправляем на Smart Fallback
         fi
     else
         # 2b. Распаковка IPK
@@ -147,15 +156,35 @@ for IPK_PATH in "${IPK_FILES[@]}"; do
         fi
 
         if [ -f "$TEMP_DIR/control_data/postinst" ]; then
-            POSTINST_CONTENT=$(sed 's/^#!.*//' "$TEMP_DIR/control_data/postinst" | sed 's/\$/\\$\\$/g')
+            POSTINST_CONTENT=$(cat "$TEMP_DIR/control_data/postinst")
         fi
     fi
 
+    # --- 4.5 СМАРТ-ФОЛЛБЕК ---
     if [ -z "$PKG_NAME" ]; then
-        echo -e "    ${C_RED}[!] Error: Could not parse package name. Skipping.${C_RST}"
-        continue
+        echo -e "    ${C_YEL}[!] Warning: Failed to extract metadata. Activating Smart Fallback...${C_RST}"
+        
+        if [[ "$IPK_NAME" =~ ^(.*)-v?([0-9].*)\.(apk|ipk)$ ]]; then
+            PKG_NAME="${BASH_REMATCH[1]}"
+            PKG_VERSION="${BASH_REMATCH[2]}"
+        else
+            PKG_NAME="${IPK_NAME%.*}"
+            PKG_VERSION="binary"
+        fi
+        PKG_ARCH=${TARGET_ARCH:-all}
+        echo -e "    ${C_GRN}[+] Guessed Name: $PKG_NAME | Ver: $PKG_VERSION${C_RST}"
     fi
     [ -z "$PKG_VERSION" ] && PKG_VERSION="binary"
+
+    # --- ОБРАБОТКА POST-INSTALL (Умная проверка) ---
+    if [ -n "$POSTINST_CONTENT" ]; then
+        if echo "$POSTINST_CONTENT" | grep -q "default_postinst"; then
+            POSTINST_CONTENT=""
+        else
+            # Убираем шебанги, экранируем $ -> $$ и убираем пустые строки
+            POSTINST_CONTENT=$(echo "$POSTINST_CONTENT" | sed '/^#!/d' | sed 's/\$/$$/g' | sed -e '/^[[:space:]]*$/d')
+        fi
+    fi
 
     # 6. ВАЛИДАЦИЯ АРХИТЕКТУРЫ
     if [ "$PKG_ARCH" == "all" ]; then
@@ -229,7 +258,13 @@ define Package/\$(PKG_NAME)
 endef
 
 define Build/Prepare
-	mkdir -p \$(PKG_BUILD_DIR)[ -f ./data.tar.gz ] && cp ./data.tar.gz \$(PKG_BUILD_DIR)/ || true ; \
+	mkdir -p \$(PKG_BUILD_DIR)
+	[ -f ./data.tar.gz ] && cp ./data.tar.gz \$(PKG_BUILD_DIR)/ || true[ -f ./data.apk ] && cp ./data.apk \$(PKG_BUILD_DIR)/ || true
+endef
+
+define Build/Prepare
+	mkdir -p \$(PKG_BUILD_DIR)
+	[ -f ./data.tar.gz ] && cp ./data.tar.gz \$(PKG_BUILD_DIR)/ || true
 	[ -f ./data.apk ] && cp ./data.apk \$(PKG_BUILD_DIR)/ || true
 endef
 
@@ -239,10 +274,10 @@ endef
 
 define Package/\$(PKG_NAME)/install
 	mkdir -p \$(1)
-    if [ -f \$(PKG_BUILD_DIR)/data.tar.gz ]; then \
+	if [ -f \$(PKG_BUILD_DIR)/data.tar.gz ]; then \
 		tar -xf \$(PKG_BUILD_DIR)/data.tar.gz -C \$(1); \
 	elif [ -f \$(PKG_BUILD_DIR)/data.apk ]; then \
-		tar -xf \$(PKG_BUILD_DIR)/data.apk -C \$(1) --exclude=.PKGINFO --exclude=.SIGN.* --exclude=.post-install --exclude=.pre-install; \\
+		apk add --root \$(1) --initdb --no-network --no-scripts --allow-untrusted \$(PKG_BUILD_DIR)/data.apk; \
 	fi
 	[ -d \$(1)/etc/init.d ] && chmod +x \$(1)/etc/init.d/* || true
 	[ -d \$(1)/usr/bin ] && chmod +x \$(1)/usr/bin/* || true
@@ -253,6 +288,10 @@ endef
 define Package/\$(PKG_NAME)/postinst
 #!/bin/sh
 if [ -z "\$\$IPKG_INSTROOT" ]; then
+	[ "\$\$IPKG_NO_SCRIPT" = "1" ] && exit 0
+	[ -s "\$\$IPKG_INSTROOT/lib/functions.sh" ] || exit 0
+	. "\$\$IPKG_INSTROOT/lib/functions.sh"
+	default_postinst \$\$0 \$\$@
 $POSTINST_CONTENT
 	:
 fi
