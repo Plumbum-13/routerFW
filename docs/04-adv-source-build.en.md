@@ -41,16 +41,19 @@ Version **4.33** implements a seamless synchronization cycle between the interac
 
 ### 📦 3. Binary-to-Source IPK/APK Import
 
-**The Problem:** You have a proprietary program (e.g., modem drivers) as an `.ipk` (or `.apk` for OpenWrt 25.x+) package, but you don't have its source code. 
+**The Problem:** You have a proprietary program (e.g., modem drivers) as an `.ipk` (for OpenWrt 23.x and older) or `.apk` (for OpenWrt 24.10+) package, but you don't have its source code. 
 **The Solution:** The "Binary-to-Source" mechanism allows you to "wrap" an `.ipk`/`.apk` into a package that `Source Builder` treats as source code.
 
+> **APK Support (starting from v4.50):** Starting from version 4.50, the builder fully supports importing and managing APK packages for Source Builder. This significantly expands firmware customization options for modern OpenWrt versions.
+
 #### A. Workflow:
-1.  **Placement**: Put `.ipk`/`.apk` files in `custom_packages/%ID%/`.
+1.  **Placement**: Put `.ipk` or `.apk` files in `custom_packages/%ID%/`.
 2.  **Launch**: Select **[I] (Import IPK/APK)** from the main menu.
-3.  **Processing**: The `system/import_ipk.ps1` script performs the following:
+3.  **Processing**: The import script (`system/import_ipk.ps1` for Windows or `system/import_ipk.sh` for Linux) performs the following:
     *   **Unpacking**: Extracts metadata (`control`) and data (`data.tar.gz`).
     *   **Architecture Check**: Compares the package architecture with your profile's `SRC_TARGET` (e.g., `aarch64_cortex-a53`).
-    *   **Dependency Correction**: Replaces outdated dependencies with current OpenWrt 23.xx/24.xx equivalents.
+    *   **Dependency Correction**: Replaces outdated dependencies with current OpenWrt 23.xx/24.xx/25.xx equivalents.
+    *   **Both formats supported**: Correctly handles both `.ipk` (opkg) and `.apk` (apk) packages.
     *   **Makefile Generation**: Creates a specialized `Makefile` in `src_packages/%ID%/%package_name%/`.
 
 #### B. What happens "under the hood":
