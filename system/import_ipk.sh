@@ -107,15 +107,28 @@ for IPK_PATH in "${IPK_FILES[@]}"; do
             PKG_VERSION=$(echo "$ADBDUMP_OUT" | grep -m 1 "^  version: " | sed 's/.*version: //')
             PKG_ARCH=$(echo "$ADBDUMP_OUT" | grep -m 1 "^  arch: " | sed 's/.*arch: //')
             
-            # Парсинг зависимостей (между depends: и provides:)
-            RAW_DEPS=$(echo "$ADBDUMP_OUT" | awk '/depends:/{flag=1; next} /provides:/{flag=0} flag {print}' | grep "^    - " | sed 's/.*- //')
+            # Парсинг зависимостей (строго по YAML отступам, без привязки к provides)
+            RAW_DEPS=$(echo "$ADBDUMP_OUT" | awk '
+              /^  depends:/ {in_deps=1; next}
+              in_deps {
+                if (match($0, /^    - /)) { sub(/^    - /, ""); print }
+                else if (match($0, /^  [a-z]/) || match($0, /^#/)) { in_deps=0 }
+              }
+            ')
             for dep in $RAW_DEPS; do
                 if [[ "$dep" =~ ^(so|cmd|pc): ]]; then continue; fi
-                [ -z "$PKG_DEPS" ] && PKG_DEPS="+$dep" || PKG_DEPS="$PKG_DEPS +$dep"
+                [[ "$dep" == "libc" || "$dep" == "libgcc" || -z "$dep" ]] && continue[ -z "$PKG_DEPS" ] && PKG_DEPS="+$dep" || PKG_DEPS="$PKG_DEPS +$dep"
             done
             
-            # Извлечение post-install (удаляем отступы YAML)
-            POSTINST_CONTENT=$(echo "$ADBDUMP_OUT" | awk '/post-install: \|/{flag=1; next} /^[a-z]/{flag=0} flag {print}' | sed 's/^    //')
+            # Извлечение post-install (строго 4 пробела отступа, остановка на других ключах)
+            POSTINST_CONTENT=$(echo "$ADBDUMP_OUT" | awk '
+              /^  post-install: \|/ {in_script=1; next}
+              in_script {
+                if (match($0, /^    /)) { sub(/^    /, ""); print }
+                else if ($0 ~ /^[ \t]*$/) { print "" }
+                else if (match($0, /^  [a-z]/) || match($0, /^#/)) { in_script=0 }
+              }
+            ')
             echo -e "    ${C_GRN}[+] Metadata extracted successfully via Docker.${C_RST}"
         else
             echo -e "    ${C_RED}[!] Docker command failed or returned empty output.${C_RST}"
@@ -176,16 +189,6 @@ for IPK_PATH in "${IPK_FILES[@]}"; do
     fi
     [ -z "$PKG_VERSION" ] && PKG_VERSION="binary"
 
-    # --- ОБРАБОТКА POST-INSTALL (Умная проверка) ---
-    if [ -n "$POSTINST_CONTENT" ]; then
-        if echo "$POSTINST_CONTENT" | grep -q "default_postinst"; then
-            POSTINST_CONTENT=""
-        else
-            # Убираем шебанги, экранируем $ -> $$ и убираем пустые строки
-            POSTINST_CONTENT=$(echo "$POSTINST_CONTENT" | sed '/^#!/d' | sed 's/\$/$$/g' | sed -e '/^[[:space:]]*$/d')
-        fi
-    fi
-
     # 6. ВАЛИДАЦИЯ АРХИТЕКТУРЫ
     if [ "$PKG_ARCH" == "all" ]; then
         echo -e "    Architecture: all (Universal) - ${C_GRN}OK${C_RST}"
@@ -237,8 +240,40 @@ for IPK_PATH in "${IPK_FILES[@]}"; do
         fi
     fi
 
+    # --- POSTINST BLOCK PREPARATION ---
+    POSTINST_BLOCK=""
+    if [ -n "$POSTINST_CONTENT" ]; then
+        # Если есть контент, создаем полный блок.
+        # Экранируем `$` и удаляем shebang.
+        CLEAN_POSTINST=$(echo "$POSTINST_CONTENT" | sed '/^#!/d' | sed 's/\$/$$/g')
+        
+        read -r -d '' POSTINST_BLOCK << EOP
+define Package/\$(PKG_NAME)/postinst
+#!/bin/sh
+# Проверка: если мы находимся в процессе сборки (INSTROOT), не запускаем сервисы
+if [ -z "\$\$IPKG_INSTROOT" ]; then
+[ "\$\$IPKG_NO_SCRIPT" = "1" ] && exit 0
+[ -s "\$\$IPKG_INSTROOT/lib/functions.sh" ] || exit 0
+. "\$\$IPKG_INSTROOT/lib/functions.sh"
+default_postinst \$\$0 \$\$@
+$CLEAN_POSTINST
+fi
+exit 0
+endef
+EOP
+    else
+        # Если контента нет, создаем заглушку
+        read -r -d '' POSTINST_BLOCK << EOP
+define Package/\$(PKG_NAME)/postinst
+#!/bin/sh
+:
+endef
+EOP
+    fi
+
     # 9. ГЕНЕРАЦИЯ MAKEFILE
-    cat <<EOF > "$TARGET_PKG_DIR/Makefile"
+    {
+    cat <<EOF
 include \$(TOPDIR)/rules.mk
 
 PKG_NAME:=$PKG_NAME
@@ -246,6 +281,7 @@ PKG_VERSION:=$PKG_VERSION
 PKG_RELEASE:=1
 
 include \$(INCLUDE_DIR)/package.mk
+# Запрещаем системе сборки изменять готовые бинарники (решает ошибки Strip/Patchelf)
 
 STRIP:=:
 PATCHELF:=:
@@ -254,12 +290,10 @@ define Package/\$(PKG_NAME)
   SECTION:=utils
   CATEGORY:=Custom-Packages
   TITLE:=Binary wrapper for $PKG_NAME
-  DEPENDS:=$PKG_DEPS
-endef
-
-define Build/Prepare
-	mkdir -p \$(PKG_BUILD_DIR)
-	[ -f ./data.tar.gz ] && cp ./data.tar.gz \$(PKG_BUILD_DIR)/ || true[ -f ./data.apk ] && cp ./data.apk \$(PKG_BUILD_DIR)/ || true
+EOF
+    # Вставляем DEPENDS только если он не пустой (без лишних переносов строк)
+    [ -n "$PKG_DEPS" ] && echo "  DEPENDS:=$PKG_DEPS"
+    cat <<EOF
 endef
 
 define Build/Prepare
@@ -274,35 +308,24 @@ endef
 
 define Package/\$(PKG_NAME)/install
 	mkdir -p \$(1)
-	if [ -f \$(PKG_BUILD_DIR)/data.tar.gz ]; then \
-		tar -xf \$(PKG_BUILD_DIR)/data.tar.gz -C \$(1); \
-	elif [ -f \$(PKG_BUILD_DIR)/data.apk ]; then \
-		apk add --root \$(1) --initdb --no-network --no-scripts --allow-untrusted \$(PKG_BUILD_DIR)/data.apk; \
+	# Распаковка внутри Linux сохраняет симлинки.
+	if [ -f \$(PKG_BUILD_DIR)/data.tar.gz ]; then \\
+		tar -xf \$(PKG_BUILD_DIR)/data.tar.gz -C \$(1); \\
+	elif [ -f \$(PKG_BUILD_DIR)/data.apk ]; then \\
+		apk add --root \$(1) --initdb --no-network --no-scripts --allow-untrusted \$(PKG_BUILD_DIR)/data.apk; \\
 	fi
+	# Принудительная правка прав для скриптов и бинарников
 	[ -d \$(1)/etc/init.d ] && chmod +x \$(1)/etc/init.d/* || true
 	[ -d \$(1)/usr/bin ] && chmod +x \$(1)/usr/bin/* || true
 	[ -d \$(1)/usr/sbin ] && chmod +x \$(1)/usr/sbin/* || true
 	[ -d \$(1)/lib/upgrade/keep.d ] && chmod 644 \$(1)/lib/upgrade/keep.d/* || true
 endef
 
-define Package/\$(PKG_NAME)/postinst
-#!/bin/sh
-if [ -z "\$\$IPKG_INSTROOT" ]; then
-	[ "\$\$IPKG_NO_SCRIPT" = "1" ] && exit 0
-	[ -s "\$\$IPKG_INSTROOT/lib/functions.sh" ] || exit 0
-	. "\$\$IPKG_INSTROOT/lib/functions.sh"
-	default_postinst \$\$0 \$\$@
-$POSTINST_CONTENT
-	:
-fi
-exit 0
-endef
+$POSTINST_BLOCK
 
 \$(eval \$(call BuildPackage,\$(PKG_NAME)))
 EOF
-
-    # Принудительно устанавливаем Unix-окончания
-    sed -i 's/\r$//' "$TARGET_PKG_DIR/Makefile"
+    } > "$TARGET_PKG_DIR/Makefile"
     
     ((IMPORTED_COUNT++))
     echo -e "    ${C_GRN}[OK] Successfully imported.${C_RST}\n"

@@ -1,4 +1,4 @@
-﻿# file : system/import_ipk.ps1
+# file : system/import_ipk.ps1
 # Скрипт импорта IPK/APK (APK support)
 
 param (
@@ -100,7 +100,7 @@ foreach ($ipk in $ipkFiles) {
             }
 
             # Regex для post-install скрипта
-            $postinstMatch = [regex]::Match($adbdumpOutputString, '(?ms)post-install:\s*\|(.*?)(?=\n\w|$)')
+            $postinstMatch = [regex]::Match($adbdumpOutputString, '(?ms)post-install:\s*\|(.*?)(?=\n\s*[a-zA-Z\-]+:\s*\||\n#|$)')
             if ($postinstMatch.Success) {
                 # Убираем отступы в 4 пробела с каждой строки
                 $postinst = ($postinstMatch.Groups[1].Value -split '\n' | ForEach-Object { if ($_.Length -gt 4) { $_.Substring(4) } else { $_.TrimStart() } } | Out-String).Trim()
@@ -147,7 +147,7 @@ foreach ($ipk in $ipkFiles) {
 
     # 4. Общая обработка зависимостей (Маппинг)
     if ($depsList) {
-        $mappedDeps = $depsList | Where-Object { $_ -ne "libc" -and $_ -ne "" } | ForEach-Object {
+        $mappedDeps = $depsList | Where-Object { $_ -ne "" } | ForEach-Object {
             if ($_ -match "^(so|cmd|pc):") { $null } # Игнорируем виртуальные зависимости APK
             elseif ($_ -eq "libnetfilter-queue1") { "libnetfilter-queue" }
             elseif ($_ -eq "libnfnetlink0") { "libnfnetlink" }
@@ -202,18 +202,12 @@ foreach ($ipk in $ipkFiles) {
 
     # 6. Обработка Post-Install
     if ($postinst) {
-        # Если в скрипте уже есть стандартный вызов, нам не нужно его дублировать
-        if ($postinst -match "default_postinst") {
-            $postinst = ""
-        } else {
-            # В противном случае, обрабатываем как кастомный скрипт
-            # Убираем лишние шебанги (#!/bin/sh), если они есть
-            $postinst = $postinst -replace '(?m)^#!/.+$', ''
-            # Экранируем знак доллара для Makefile (превращаем $ в $$)
-            $postinst = $postinst -replace '\$', '$$'
-            # Убираем лишние пустые строки в начале и конце
-            $postinst = $postinst.Trim()
-        }
+        # Убираем лишние шебанги (#!/bin/sh), если они есть
+        $postinst = $postinst -replace '(?m)^#!/.+$', ''
+        # Экранируем знак доллара для Makefile (превращаем $ в $$)
+        $postinst = $postinst -replace '\$', '$$$$'
+        # Убираем лишние пустые строки в начале и конце
+        $postinst = $postinst.Trim()
     }
 
     # 7. Логика перезаписи
@@ -242,11 +236,48 @@ foreach ($ipk in $ipkFiles) {
     }
 
     # --- 9. ГЕНЕРАЦИЯ УМНОГО MAKEFILE ---
+
+    # 9.1 Подготовка блока зависимостей
+    $dependLine = ""
+    if (-not [string]::IsNullOrEmpty($pkgDeps)) {
+        $dependLine = "  DEPENDS:=" + $pkgDeps
+    }
+
+    # 9.2 Подготовка блока postinst
+    $postinstBlockTemplate = ""
+    if ([string]::IsNullOrEmpty($postinst)) {
+        # Если контента нет, создаем заглушку (тут одинарные кавычки, экранирование не нужно)
+        $postinstBlockTemplate = @'
+define Package/$(PKG_NAME)/postinst
+#!/bin/sh
+:
+endef
+'@
+    } else {
+        # Если есть кастомный скрипт, используем обратный апостроф ` перед $
+        $postinstBlockTemplate = @"
+define Package/`$(PKG_NAME)/postinst
+#!/bin/sh
+# Проверка: если мы находимся в процессе сборки (INSTROOT), не запускаем сервисы
+if [ -z "`$`$IPKG_INSTROOT" ]; then
+[ "`$`$IPKG_NO_SCRIPT" = "1" ] && exit 0
+[ -s "`$`$IPKG_INSTROOT/lib/functions.sh" ] || exit 0
+. "`$`$IPKG_INSTROOT/lib/functions.sh"
+default_postinst `$`$0 `$`$@
+$postinst
+fi
+exit 0
+endef
+"@
+    }
+    $postinstBlock = $postinstBlockTemplate.Replace('{{PKG_NAME}}', $pkgName)
+
+    # 9.3 Сборка финального Makefile из нерасширяемого шаблона
     $template = @'
 include $(TOPDIR)/rules.mk
 
-PKG_NAME:={0}
-PKG_VERSION:={3}
+PKG_NAME:={{PKG_NAME}}
+PKG_VERSION:={{PKG_VERSION}}
 PKG_RELEASE:=1
 
 include $(INCLUDE_DIR)/package.mk
@@ -258,8 +289,8 @@ PATCHELF:=:
 define Package/$(PKG_NAME)
   SECTION:=utils
   CATEGORY:=Custom-Packages
-  TITLE:=Binary wrapper for {0}
-  DEPENDS:={1}
+  TITLE:=Binary wrapper for {{PKG_NAME}}
+{{DEPENDS_LINE}}
 endef
 
 define Build/Prepare
@@ -287,27 +318,21 @@ define Package/$(PKG_NAME)/install
 	[ -d $(1)/lib/upgrade/keep.d ] && chmod 644 $(1)/lib/upgrade/keep.d/* || true
 endef
 
-define Package/$(PKG_NAME)/postinst
-#!/bin/sh
-# Проверка: если мы находимся в процессе сборки (INSTROOT), не запускаем сервисы
-if [ -z "$$IPKG_INSTROOT" ]; then
-[ "$$IPKG_NO_SCRIPT" = "1" ] && exit 0
-[ -s "$$IPKG_INSTROOT/lib/functions.sh" ] || exit 0
-. "$$IPKG_INSTROOT/lib/functions.sh"
-default_postinst $$0 $$@
-{2}
-	:
-fi
-exit 0
-endef
+{{POSTINST_BLOCK}}
 
 $(eval $(call BuildPackage,$(PKG_NAME)))
+
 '@
 
+    # Последовательно заменяем плейсхолдеры
+    $makefileContent = $template.Replace('{{PKG_NAME}}', $pkgName)
+    $makefileContent = $makefileContent.Replace('{{PKG_VERSION}}', $pkgVersion)
+    $makefileContent = $makefileContent.Replace('{{DEPENDS_LINE}}', $dependLine)
+    $makefileContent = $makefileContent.Replace('{{POSTINST_BLOCK}}', $postinstBlock)
+
     # Сохраняем файл с принудительными Unix-окончаниями строк (LF)
-    $makefileContent = $template -f $pkgName, $pkgDeps, $postinst, $pkgVersion
     $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-    $finalContent = $makefileContent -replace "`r`n", "`n"
+    $finalContent = $makefileContent.Replace("`r`n", "`n")
     [System.IO.File]::WriteAllText("$targetPkgDir\Makefile", $finalContent, $utf8NoBom)    
     
     $importedCount++
