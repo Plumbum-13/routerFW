@@ -334,7 +334,7 @@ define Package/$(PKG_NAME)/install
 	if [ -f $(PKG_BUILD_DIR)/data.tar.gz ]; then \
 		tar -xf $(PKG_BUILD_DIR)/data.tar.gz -C $(1); \
 	elif [ -f $(PKG_BUILD_DIR)/data.apk ]; then \
-		apk add --root $(1) --initdb --no-network --no-cache --no-scripts --allow-untrusted $(PKG_BUILD_DIR)/data.apk; \
+		apk add --root $(1) --initdb --no-network --no-cache --no-scripts --allow-untrusted --usermode $(PKG_BUILD_DIR)/data.apk; \
 		rm -rf $(1)/lib/apk $(1)/etc/apk; \
 	fi
 	# Принудительная правка прав для скриптов и бинарников
