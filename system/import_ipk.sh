@@ -362,4 +362,4 @@ echo -e "${C_CYAN}==========================================================${C_
 # Авто-определение языка для паузы
 [[ "$LANG" == *"ru"* ]] && echo -e "\n Нажмите Enter, чтобы продолжить..." || echo -e "\n Press Enter to continue..."
 read -r
-# checksum:MD5=2e8b979071eb7d96ad89ea301ffbe952
+# checksum:MD5=96ef98a4792ff187c12e5815faf3587b

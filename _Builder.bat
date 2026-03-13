@@ -301,7 +301,7 @@ if "%BUILD_MODE%"=="IMAGE" (
 :: 2. ОТРИСОВКА ЗАГОЛОВКА (в CLI не выводим)
 if not defined CLI_CMD (
 echo !C_GRY!┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐!C_RST!
-echo   !C_VAL!OpenWrt FW Builder !VER_NUM!!C_RST! [!C_VAL!!SYS_LANG!!C_RST!]          !C_LBL!https://github.com/iqubik/routerFW!C_RST!
+echo   !C_VAL!OpenWrt FW Windows Builder !VER_NUM!!C_RST! [!C_VAL!!SYS_LANG!!C_RST!]          !C_LBL!https://github.com/iqubik/routerFW!C_RST!
 echo   !L_CUR_MODE!: [!C_VAL!!MODE_TITLE!!C_RST!]
 echo !C_GRY!└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘!C_RST!
 echo.
