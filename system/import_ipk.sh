@@ -131,6 +131,15 @@ for IPK_PATH in "${IPK_FILES[@]}"; do
                 else if (match($0, /^  [a-z]/) || match($0, /^#/)) { in_script=0 }
               }
             ')
+            # Извлечение pre-deinstall (аналог prerm)
+            PRERM_CONTENT=$(echo "$ADBDUMP_OUT" | awk '
+              /^  pre-deinstall: \|/ {in_script=1; next}
+              in_script {
+                if (match($0, /^    /)) { sub(/^    /, ""); print }
+                else if ($0 ~ /^[ \t]*$/) { print "" }
+                else if (match($0, /^  [a-z]/) || match($0, /^#/)) { in_script=0 }
+              }
+            ')
             echo -e "    ${C_GRN}[+] Metadata extracted successfully via Docker.${C_RST}"
         else
             echo -e "    ${C_RED}[!] Docker command failed or returned empty output.${C_RST}"
