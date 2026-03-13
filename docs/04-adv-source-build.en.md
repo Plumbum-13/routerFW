@@ -134,4 +134,27 @@ How to build firmware using a complex `defconfig` from a third-party developer:
     `firmware_output\sourcebuilder\%ID%\manual_config`
 4.  **Expand**: Run **Menuconfig** again. The system detects the minimalist file (e.g., 11KB) and **automatically expands it** into a full `.config` (~400KB), resolving all dependencies.
 5.  **Finalize**: Upon exit, select **Y** to update the profile. The Builder will compress the settings back into a clean diff and save them into your `.conf`.
-# checksum:MD5=9b2e4c6742dbe358dc18a37964e258c9
+
+---
+
+### 🛠️ 9. Advanced Package Compilation
+
+This section covers commands for advanced users who need to manually compile or recompile specific packages within the OpenWrt build system.
+
+*   **`package/<package_name>/compile`**: This `make` target instructs the OpenWrt build system to compile a specific package. Replace `<package_name>` with the actual directory name of the package in `openwrt/buildroot/package/`.
+*   **`V=s`**: This flag makes the build output more verbose, which is very useful for debugging if something goes wrong.
+
+**Example:**
+
+If you want to recompile the `luci-app-samba4` package, the command would be:
+
+```bash
+make package/luci-app-samba4/compile V=s
+```
+
+If you just want to clean cache of package, you can use:
+
+```bash
+make package/<package_name>/clean V=s
+```
+# checksum:MD5=3284f7f66cdcc3d7d7f9522679a7c4ed
