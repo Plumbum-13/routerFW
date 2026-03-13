@@ -339,7 +339,8 @@ define Package/\$(PKG_NAME)/install
 	if [ -f \$(PKG_BUILD_DIR)/data.tar.gz ]; then \\
 		tar -xf \$(PKG_BUILD_DIR)/data.tar.gz -C \$(1); \\
 	elif [ -f \$(PKG_BUILD_DIR)/data.apk ]; then \\
-		apk add --root \$(1) --initdb --no-network --no-scripts --allow-untrusted \$(PKG_BUILD_DIR)/data.apk; \\
+		apk add --root \$(1) --initdb --no-network --no-scripts --no-cache --allow-untrusted \$(PKG_BUILD_DIR)/data.apk; \\
+		rm -rf \$(1)/lib/apk \$(1)/etc/apk; \\
 	fi
 	# Принудительная правка прав для скриптов и бинарников
 	[ -d \$(1)/etc/init.d ] && chmod +x \$(1)/etc/init.d/* || true
@@ -371,4 +372,4 @@ echo -e "${C_CYAN}==========================================================${C_
 # Авто-определение языка для паузы
 [[ "$LANG" == *"ru"* ]] && echo -e "\n Нажмите Enter, чтобы продолжить..." || echo -e "\n Press Enter to continue..."
 read -r
-# checksum:MD5=73ec3d09eee128b018eb294aad239f93
+# checksum:MD5=74eac26f8476fda520f45573853f1e30

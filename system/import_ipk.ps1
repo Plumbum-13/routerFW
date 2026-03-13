@@ -334,7 +334,8 @@ define Package/$(PKG_NAME)/install
 	if [ -f $(PKG_BUILD_DIR)/data.tar.gz ]; then \
 		tar -xf $(PKG_BUILD_DIR)/data.tar.gz -C $(1); \
 	elif [ -f $(PKG_BUILD_DIR)/data.apk ]; then \
-		apk add --root $(1) --initdb --no-network --no-scripts --allow-untrusted $(PKG_BUILD_DIR)/data.apk; \
+		apk add --root $(1) --initdb --no-network --no-cache --no-scripts --allow-untrusted $(PKG_BUILD_DIR)/data.apk; \
+		rm -rf $(1)/lib/apk $(1)/etc/apk; \
 	fi
 	# Принудительная правка прав для скриптов и бинарников
 	[ -d $(1)/etc/init.d ] && chmod +x $(1)/etc/init.d/* || true
@@ -374,4 +375,4 @@ Write-Host "==========================================================" -Foregro
 Write-Host "  DONE: $importedCount packages imported." -ForegroundColor Cyan
 if ($ProfileID) { Write-Host "  Location: $outDir" -ForegroundColor Gray }
 Write-Host "==========================================================`n"
-# checksum:MD5=dfa50fe051845d72b5a2df277c951e88
+# checksum:MD5=57ab8579e4fb56e79ac797d751dc5b8e
