@@ -297,9 +297,6 @@ _packer.sh / _packer.bat  (v2.2 MT)
         _unpacker.sh  (Linux)   ← НЕ ЧИТАТЬ (огромная base64-нагрузка)
         _unpacker.bat (Windows) ← НЕ ЧИТАТЬ (огромная base64-нагрузка)
 
-dist/  — SVG-визуализации релизов (timeline, tree, heatmap, river, bars, stats).
-        Генерируются GitHub Actions (release-visualizer.yml) и скриптами
-        (changelog-to-svg.ps1, architecture-tetris.ps1); в репо каталог может быть пустым.
 ```
 
 ---
