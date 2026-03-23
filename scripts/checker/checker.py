@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# ver 0.2
+VERSION = "0.2"
+
 import subprocess
 import concurrent.futures
 import time
@@ -121,7 +122,8 @@ def main():
         if os.path.exists(file):
             os.remove(file)
 
-    print(f"🔍 Запуск проверки в {MAX_THREADS} потоков (внутри каждого еще по {CHECKS_PER_DOMAIN} микро-потоков)...")
+    print(f"Checker.py v{VERSION} запущен!")
+    print(f"🔍 Запуск проверки в {MAX_THREADS} потоков (внутри каждого еще по {CHECKS_PER_DOMAIN} микро-потоков)...")    
     print(f"ℹ️  Уникальных доменов для проверки: {total_count} (дубликаты удалены)")
     print("=" * 70)
     
@@ -166,7 +168,7 @@ def main():
                     current_code = ""
                     for dom, code in good_list:
                         if code != current_code:
-                            f.write(f"\n# ====== HTTP {code} ======\n")
+                            f.write(f"\n# ====== HTTP {code} ====================================================\n")
                             current_code = code
                         f.write(f"{dom}\n")
                         
