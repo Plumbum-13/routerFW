@@ -16,7 +16,7 @@ if [ -z "$1" ]; then
 fi
 
 TARGET_IP="$1"
-SCAN_TIME=10
+SCAN_TIME=120
 
 > tocheck.txt
 rm -f good_snis.txt unstable_snis.txt bad_snis.txt
